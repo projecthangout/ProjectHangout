@@ -227,13 +227,27 @@ export default function Call() {
                 // Add the dynamically painted video track
                 canvasStream.getVideoTracks().forEach(t => combinedStream.addTrack(t));
 
-                // Mix all audio tracks (local mic + remote peers)
-                if (localStreamRef.current) {
-                    localStreamRef.current.getAudioTracks().forEach(t => combinedStream.addTrack(t));
+                // Mix all audio tracks (local mic + remote peers) using Web Audio API
+                const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                const destination = audioCtx.createMediaStreamDestination();
+                let hasAudio = false;
+
+                if (localStreamRef.current && localStreamRef.current.getAudioTracks().length > 0) {
+                    const source = audioCtx.createMediaStreamSource(new MediaStream([localStreamRef.current.getAudioTracks()[0]]));
+                    source.connect(destination);
+                    hasAudio = true;
                 }
                 remoteStreams.forEach((peer) => {
-                    if (peer.stream) peer.stream.getAudioTracks().forEach(t => combinedStream.addTrack(t));
+                    if (peer.stream && peer.stream.getAudioTracks().length > 0) {
+                        const source = audioCtx.createMediaStreamSource(new MediaStream([peer.stream.getAudioTracks()[0]]));
+                        source.connect(destination);
+                        hasAudio = true;
+                    }
                 });
+
+                if (hasAudio) {
+                    destination.stream.getAudioTracks().forEach(t => combinedStream.addTrack(t));
+                }
 
                 let options = { mimeType: 'video/webm;codecs=vp9,opus' };
                 if (!MediaRecorder.isTypeSupported(options.mimeType)) {
@@ -520,6 +534,9 @@ export default function Call() {
 
         pc.oniceconnectionstatechange = () => {
             console.log("ICE Connection State with", peerUsername, ":", pc.iceConnectionState);
+            if (pc.iceConnectionState === 'disconnected' || pc.iceConnectionState === 'failed' || pc.iceConnectionState === 'closed') {
+                handlePeerDisconnect(peerUsername);
+            }
         };
 
         let isNegotiating = false;
