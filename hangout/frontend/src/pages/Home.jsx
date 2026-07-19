@@ -58,6 +58,7 @@ const generateRoomId = () => {
 };
 export default function Home() {
   const navigate = useNavigate();
+  const API_URL = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
   const location = useLocation();
   const { theme, toggleTheme } = useTheme();
 
@@ -147,14 +148,14 @@ export default function Home() {
 
   useEffect(() => {
     if (username) {
-      axios.get(`http://127.0.0.1:8000/api/recordings/${username}/`)
+      axios.get(`${API_URL}/api/recordings/${username}/`)
         .then(res => {
           setRecordingsCount(res.data.recordings.length);
           setSavedRecordings(res.data.recordings);
         })
         .catch(err => console.error("Failed to fetch recordings:", err));
 
-      axios.get(`http://127.0.0.1:8000/api/notes/${username}/`)
+      axios.get(`${API_URL}/api/notes/${username}/`)
         .then(res => {
           setNotesCount(res.data.notes.length);
           setSavedNotes(res.data.notes);
@@ -185,7 +186,7 @@ export default function Home() {
       const roomToCheck = joinCode.trim();
       
       try {
-        const response = await axios.get(`http://127.0.0.1:8000/api/validate-room/${roomToCheck}/`);
+        const response = await axios.get(`${API_URL}/api/validate-room/${roomToCheck}/`);
         
         if (response.data.exists) {
           setPreJoinRoomId(roomToCheck);
@@ -206,7 +207,7 @@ export default function Home() {
     setShowRecordingModal(true);
     setLoadingHistory(true);
     try {
-      const res = await axios.get(`http://127.0.0.1:8000/api/recordings/${username}/`);
+      const res = await axios.get(`${API_URL}/api/recordings/${username}/`);
       setSavedRecordings(res.data.recordings);
     } catch (err) {
       console.error("Failed to fetch recordings:", err);
@@ -217,7 +218,7 @@ export default function Home() {
 
   const handleDeleteRecording = async (recId) => {
     try {
-      await axios.delete(`http://127.0.0.1:8000/api/recordings/delete/${recId}/`);
+      await axios.delete(`${API_URL}/api/recordings/delete/${recId}/`);
       setSavedRecordings(prev => prev.filter(r => r.id !== recId));
       setRecordingsCount(prev => prev - 1);
     } catch (err) {
@@ -234,7 +235,7 @@ export default function Home() {
     setShowNotesModal(true);
     setLoadingNotes(true);
     try {
-      const res = await axios.get(`http://127.0.0.1:8000/api/notes/${username}/`);
+      const res = await axios.get(`${API_URL}/api/notes/${username}/`);
       setSavedNotes(res.data.notes);
     } catch (err) {
       console.error("Failed to fetch notes:", err);
@@ -245,7 +246,7 @@ export default function Home() {
 
   const handleDeleteNote = async (noteId) => {
     try {
-      await axios.delete(`http://127.0.0.1:8000/api/notes/delete/${noteId}/`);
+      await axios.delete(`${API_URL}/api/notes/delete/${noteId}/`);
       setSavedNotes(prev => prev.filter(n => n.id !== noteId));
       setNotesCount(prev => prev - 1);
     } catch (err) {

@@ -7,6 +7,9 @@ export default function Call() {
     const { roomId } = useParams();
     const navigate = useNavigate();
 
+    const API_URL = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
+    const WS_URL = import.meta.env.VITE_WS_URL || "ws://localhost:8000";
+
     // --- 1. Static Configuration ---
     const filters = [
         { id: "none", label: "Normal", icon: "✨", style: "" },
@@ -263,7 +266,7 @@ export default function Call() {
                     formData.append('username', myUsername);
 
                     try {
-                        await axios.post('http://127.0.0.1:8000/api/recordings/upload/', formData, {
+                        await axios.post(`${API_URL}/api/recordings/upload/`, formData, {
                             headers: { 'Content-Type': 'multipart/form-data' }
                         });
                         setNotification("✅ Recording successfully saved to your account!");
@@ -547,7 +550,7 @@ export default function Call() {
 
     // --- WebSocket Signal Multiplexer ---
     const connectWebSocket = (username) => {
-        wsRef.current = new WebSocket(`ws://localhost:8000/ws/call/${roomId}/`);
+        wsRef.current = new WebSocket(`${WS_URL}/ws/call/${roomId}/`);
         
         // Wrap send for logging
         const originalSend = wsRef.current.send.bind(wsRef.current);
@@ -1348,7 +1351,7 @@ export default function Call() {
                       <button onClick={async () => {
                         if (!notes.trim()) { setNotification("Notes are empty!"); setTimeout(() => setNotification(""), 2000); return; }
                         try {
-                          await axios.post('http://127.0.0.1:8000/api/notes/save/', { room_id: roomId, username: myUsername, content: notes });
+                          await axios.post(`${API_URL}/api/notes/save/`, { room_id: roomId, username: myUsername, content: notes });
                           setNotification("✅ Notes saved successfully!");
                         } catch (err) { console.error(err); setNotification("✕ Failed to save notes."); }
                         setTimeout(() => setNotification(""), 2000);
