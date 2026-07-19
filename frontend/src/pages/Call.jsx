@@ -1075,7 +1075,6 @@ export default function Call() {
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            aspectRatio: "16/9",
             transition: "all 0.4s cubic-bezier(0.4, 0, 0.2, 1)",
             boxShadow: "0 10px 30px rgba(0,0,0,0.2)"
         };
@@ -1083,20 +1082,23 @@ export default function Call() {
         if (isSidebarItem) {
             baseStyle.width = "100%";
             baseStyle.height = "auto";
+            baseStyle.aspectRatio = "16/9";
             baseStyle.flexShrink = 0;
             return baseStyle;
         }
 
-        // For main grid, use dynamic sizing that respects grid boundaries
+        // For main grid, allow cards to completely fill the grid cell boundaries vertically and horizontally
         baseStyle.width = "100%";
-        baseStyle.height = "auto";
-        baseStyle.maxWidth = "100%";
-        baseStyle.maxHeight = "100%";
-        baseStyle.placeSelf = "center";
+        baseStyle.height = "100%";
         
-        // Ensure that for a single user, it doesn't scale infinitely large
+        // Ensure that for a single user, it acts like a 16:9 card
         if (totalUsers === 1) {
-            baseStyle.maxWidth = "900px";
+            baseStyle.aspectRatio = "16/9";
+            baseStyle.height = "auto";
+            baseStyle.width = "100%";
+            baseStyle.maxWidth = "1100px";
+            baseStyle.maxHeight = "calc(100vh - 200px)";
+            baseStyle.margin = "auto";
         }
 
         return baseStyle;
@@ -1304,19 +1306,18 @@ export default function Call() {
 
       <header
         style={{
-          display: "flex", alignItems: "center",
-          justifyContent: "space-between",
+          display: "grid", gridTemplateColumns: "1fr auto 1fr", alignItems: "center",
           padding: "11px 20px", flexShrink: 0,
           borderBottom: "1px solid rgba(255,255,255,0.05)",
           background: "rgba(9,9,13,0.92)",
           backdropFilter: "blur(10px)", zIndex: 30,
         }}
       >
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, justifySelf: "start" }}>
           <span style={{ fontFamily: "'Pramukh Rounded', sans-serif", fontWeight: 800, fontStyle: "italic", fontSize: 30, color: "#FDFBD4", letterSpacing: "1px" }}>HANGOUT</span>
         </div>
 
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, justifySelf: "center" }}>
           <button className="hbtn" onClick={copyRoom}>
             <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 12, color: "#10B981", letterSpacing: "0.07em" }}>{roomId}</span>
             {copied ? <Check size={12} strokeWidth={2.5} color="#10B981" /> : <Copy size={12} strokeWidth={2} />}
@@ -1326,7 +1327,7 @@ export default function Call() {
           </div>
         </div>
 
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, justifySelf: "end" }}>
           <button className="hbtn" onClick={() => setShowMusicCard(true)}>
             <Music size={13} strokeWidth={1.75} /> Stream Music
           </button>
@@ -1347,8 +1348,8 @@ export default function Call() {
             gridTemplateColumns: activeScreenSharer ? undefined : `repeat(${getGridDimensions(totalUsers).cols}, 1fr)`,
             gridTemplateRows: activeScreenSharer ? undefined : `repeat(${getGridDimensions(totalUsers).rows}, 1fr)`,
             flexDirection: activeScreenSharer ? "row" : undefined,
-            alignItems: activeScreenSharer ? "stretch" : "center",
-            justifyContent: "center",
+            alignItems: "stretch",
+            justifyItems: "stretch",
             alignContent: "center",
             gap: "16px",
             padding: "16px",
@@ -1520,7 +1521,7 @@ export default function Call() {
                   <button key={tab} className={`ptab ${panel === tab ? "ptab-on" : "ptab-off"}`} onClick={() => setPanel(tab)} style={{ textTransform: "capitalize" }}>{tab}</button>
                 ))}
               </div>
-              <button onClick={() => setPanel(null)} style={{ background: "transparent", border: "none", cursor: "pointer", color: "#2D3748", display: "flex", padding: 5, borderRadius: 6, outline: "none" }}><X size={15} strokeWidth={2} /></button>
+              <button onClick={() => setPanel(null)} style={{ background: "transparent", border: "none", cursor: "pointer", color: "#64748b", display: "flex", padding: 5, borderRadius: 6, outline: "none", transition: "color 0.2s" }} onMouseOver={e => e.currentTarget.style.color="#f8fafc"} onMouseOut={e => e.currentTarget.style.color="#64748b"}><X size={15} strokeWidth={2} /></button>
             </div>
 
             {panel === "people" && (
