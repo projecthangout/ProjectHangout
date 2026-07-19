@@ -21,12 +21,11 @@ def upload_recording(request):
         if not video_file or not room_uuid or not username_str:
             return JsonResponse({"error": "Missing required fields"}, status=400)
 
-        try:
-            # 1. Look up the user
-            actual_user = User.objects.get(username=username_str)
+            # 1. Dynamically fetch or create the user if they're authenticated via frontend
+            actual_user, user_created = User.objects.get_or_create(username=username_str)
 
-            # 2. FIXED: Dynamically fetch or create the room if it's a new link!
-            actual_room, created = Room.objects.get_or_create(room_id=room_uuid)
+            # 2. Dynamically fetch or create the room
+            actual_room, room_created = Room.objects.get_or_create(room_id=room_uuid)
 
             # 3. Save the recording with relation keys
             recording = MeetingRecording.objects.create(
@@ -34,20 +33,17 @@ def upload_recording(request):
             )
             return JsonResponse({"message": "Upload successful", "id": recording.id})
 
-        except User.DoesNotExist:
+        except Exception as e:
             return JsonResponse(
-                {"error": f"User '{username_str}' does not exist"}, status=404
+                {"error": str(e)}, status=500
             )
 
     return JsonResponse({"error": "Invalid method"}, status=405)
 
 
 def get_user_recordings(request, username):
-    try:
-        # Fetch the actual user object first to filter relational recordings
-        actual_user = User.objects.get(username=username)
-    except User.DoesNotExist:
-        return JsonResponse({"error": "User not found"}, status=404)
+    # Fetch the actual user object or create it
+    actual_user, created = User.objects.get_or_create(username=username)
 
     # 1. Clean up expired records on-the-fly using the 'user' relational field
     expired_recordings = MeetingRecording.objects.filter(
@@ -111,25 +107,20 @@ def save_note(request):
             if not room_uuid or not username_str or content is None:
                 return JsonResponse({"error": "Missing required fields"}, status=400)
 
-            actual_user = User.objects.get(username=username_str)
-            actual_room, created = Room.objects.get_or_create(room_id=room_uuid)
+            actual_user, user_created = User.objects.get_or_create(username=username_str)
+            actual_room, room_created = Room.objects.get_or_create(room_id=room_uuid)
 
             note = MeetingNote.objects.create(
                 user=actual_user, room=actual_room, content=content
             )
             return JsonResponse({"message": "Note saved successfully", "id": note.id})
-        except User.DoesNotExist:
-            return JsonResponse({"error": "User not found"}, status=404)
         except Exception as e:
             return JsonResponse({"error": str(e)}, status=500)
     return JsonResponse({"error": "Invalid method"}, status=405)
 
 
 def get_user_notes(request, username):
-    try:
-        actual_user = User.objects.get(username=username)
-    except User.DoesNotExist:
-        return JsonResponse({"error": "User not found"}, status=404)
+    actual_user, created = User.objects.get_or_create(username=username)
 
     notes = MeetingNote.objects.filter(user=actual_user).order_by("-created_at")
     data = []
