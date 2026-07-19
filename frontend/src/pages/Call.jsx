@@ -170,14 +170,28 @@ export default function Call() {
         if (!chatInput.trim()) return;
         const now = new Date();
         const time = `${now.getHours()}:${String(now.getMinutes()).padStart(2, "0")}`;
+        const currentSender = sessionStorage.getItem('username') || myUsername;
         const msg = { from: "You", text: chatInput.trim(), time };
+        
         setMessages((m) => {
             const newM = [...m, msg];
             messagesRef.current = newM;
             return newM;
         });
+        
         if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-            wsRef.current.send(JSON.stringify({ type: 'chat-message', text: chatInput.trim(), time, sender: myUsername }));
+            // Send explicitly targeted messages to guarantee delivery bypassing any broadcast filters
+            Object.keys(peerConnectionsRef.current).forEach((peerUsername) => {
+                wsRef.current.send(JSON.stringify({ 
+                    type: 'chat-message', 
+                    text: chatInput.trim(), 
+                    time, 
+                    sender: currentSender,
+                    target: peerUsername
+                }));
+            });
+            // General broadcast as a fallback
+            wsRef.current.send(JSON.stringify({ type: 'chat-message', text: chatInput.trim(), time, sender: currentSender }));
         }
         setChatInput("");
     };
