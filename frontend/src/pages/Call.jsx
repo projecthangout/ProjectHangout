@@ -38,10 +38,6 @@ export default function Call() {
     const recordedChunksRef = useRef([]);
     const animationFrameIdRef = useRef(null);
 
-    // --- 3. Multi-User Connection Maps ---
-    const peerConnectionsRef = useRef({}); 
-    const iceCandidateQueue = useRef({});
-
     // --- 4. Application State ---
     const [isRecording, setIsRecording] = useState(false);
     // eslint-disable-next-line no-unused-vars
@@ -53,14 +49,8 @@ export default function Call() {
     const [isMicOn, setIsMicOn] = useState(false);    
     const [isCameraOn, setIsCameraOn] = useState(false);
     const [isScreenSharing, setIsScreenSharing] = useState(false);
-    const [isRecording, setIsRecording] = useState(false);
     const [activeScreenSharer, setActiveScreenSharer] = useState(null);
     const [isMaximized, setIsMaximized] = useState(false);
-
-    // Panels and Chat
-    const [panel, setPanel] = useState(null); // 'notes' | 'chat' | 'people'
-    const [chatInput, setChatInput] = useState('');
-    const [messages, setMessages] = useState([]);
     
     // Mic Volume indicator
     const [micVolume, setMicVolume] = useState(0);
