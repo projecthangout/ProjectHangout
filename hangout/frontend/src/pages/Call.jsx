@@ -105,7 +105,7 @@ export default function Call() {
         const msg = { from: "You", text: chatInput.trim(), time };
         setMessages((m) => [...m, msg]);
         if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-            wsRef.current.send(JSON.stringify({ type: 'chat-message', text: chatInput.trim(), time, sender: myUsername }));
+            wsRef.current.send(JSON.stringify({ type: 'chat-message', text: chatInput.trim(), time, sender: myPeerId }));
         }
         setChatInput("");
     };
@@ -334,7 +334,7 @@ export default function Call() {
                     const pc = peerConnectionsRef.current[peerId];
                     pc.addTrack(audioFileTrack, musicStream);
                 });
-                wsRef.current?.send(JSON.stringify({ type: 'music-status', status: 'started', sender: myUsername }));
+                wsRef.current?.send(JSON.stringify({ type: 'music-status', status: 'started', sender: myPeerId }));
             }
         } catch (err) { console.error(err); }
     };
@@ -356,10 +356,10 @@ export default function Call() {
                     pc.addTrack(audioTrack, sysAudioStream);
                 });
                 setShowMusicCard(false);
-                wsRef.current?.send(JSON.stringify({ type: 'music-status', status: 'started', sender: myUsername }));
+                wsRef.current?.send(JSON.stringify({ type: 'music-status', status: 'started', sender: myPeerId }));
                 
                 audioTrack.onended = () => {
-                    wsRef.current?.send(JSON.stringify({ type: 'music-status', status: 'stopped', sender: myUsername }));
+                    wsRef.current?.send(JSON.stringify({ type: 'music-status', status: 'stopped', sender: myPeerId }));
                 };
             }
         } catch (err) {
@@ -370,7 +370,7 @@ export default function Call() {
     const handleFilterChange = (filterId) => {
         setActiveFilter(filterId);
         if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-            wsRef.current.send(JSON.stringify({ type: 'change-filter', filter: filterId, sender: myUsername }));
+            wsRef.current.send(JSON.stringify({ type: 'change-filter', filter: filterId, sender: myPeerId }));
         }
     };
 
@@ -773,7 +773,7 @@ export default function Call() {
                 setIsScreenSharing(true);
                 setActiveScreenSharer(myUsername);
                 if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-                    wsRef.current.send(JSON.stringify({ type: 'screen-share-start', sender: myUsername }));
+                    wsRef.current.send(JSON.stringify({ type: 'screen-share-start', sender: myPeerId }));
                 }
                 screenVideoTrack.onended = () => stopScreenSharing();
             } else { stopScreenSharing(); }
@@ -806,7 +806,7 @@ export default function Call() {
         setIsScreenSharing(false);
         setActiveScreenSharer(null);
         if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-            wsRef.current.send(JSON.stringify({ type: 'screen-share-stop', sender: myUsername }));
+            wsRef.current.send(JSON.stringify({ type: 'screen-share-stop', sender: myPeerId }));
         }
     };
 
@@ -1212,18 +1212,18 @@ export default function Call() {
               autoPlay
               playsInline
               muted
-              className={`${localFilterClass} ${activeScreenSharer ? (activeScreenSharer === myUsername ? 'stage-video' : 'hidden-video') : 'grid-video'}`}
+              className={`${localFilterClass} ${activeScreenSharer ? (activeScreenSharer === myPeerId ? 'stage-video' : 'hidden-video') : 'grid-video'}`}
               style={{
                 width: "100%",
                 height: "100%",
-                objectFit: activeScreenSharer === myUsername ? "fill" : "cover",
-                transform: activeScreenSharer === myUsername ? "none" : "scaleX(-1)",
-                display: ((isCameraOn || isScreenSharing) && (activeScreenSharer === myUsername || !activeScreenSharer)) ? "block" : "none",
+                objectFit: activeScreenSharer === myPeerId ? "fill" : "cover",
+                transform: activeScreenSharer === myPeerId ? "none" : "scaleX(-1)",
+                display: ((isCameraOn || isScreenSharing) && (activeScreenSharer === myPeerId || !activeScreenSharer)) ? "block" : "none",
               }}
             />
 
             {/* Remote Sharer Video */}
-            {activeScreenSharer && activeScreenSharer !== myUsername && (
+            {activeScreenSharer && activeScreenSharer !== myPeerId && (
               (() => {
                 const sharer = remoteStreams.find(p => p.peerId === activeScreenSharer);
                 const currentPeerFilterStyle = filters.find(f => f.id === peerFilter)?.style || "";
@@ -1246,11 +1246,11 @@ export default function Call() {
 
             {activeScreenSharer && <div className="hover-overlay" />}
             
-            {(activeScreenSharer === myUsername || !activeScreenSharer) && !(isCameraOn || isScreenSharing) && <VideoOff size={24} color="#2D3748" />}
+            {(activeScreenSharer === myPeerId || !activeScreenSharer) && !(isCameraOn || isScreenSharing) && <VideoOff size={24} color="#2D3748" />}
             
             <div style={{ position: "absolute", bottom: 12, left: 12, background: "rgba(26,28,30,0.8)", padding: "6px 12px", borderRadius: 8, fontSize: 11, fontWeight: 600, display: "flex", alignItems: "center", gap: 6 }}>
-               {activeScreenSharer === myUsername ? `Your Screen` : (activeScreenSharer ? (() => { const sharer = remoteStreams.find(p => p.peerId === activeScreenSharer); return `${sharer?.displayName || activeScreenSharer}'s Screen`; })() : `${myDisplayName} (You)`)}
-               {!activeScreenSharer || activeScreenSharer === myUsername ? (
+               {activeScreenSharer === myPeerId ? `Your Screen` : (activeScreenSharer ? (() => { const sharer = remoteStreams.find(p => p.peerId === activeScreenSharer); return `${sharer?.displayName || activeScreenSharer}'s Screen`; })() : `${myDisplayName} (You)`)}
+               {!activeScreenSharer || activeScreenSharer === myPeerId ? (
                  isMicOn ? <Mic size={14} color="#10B981" /> : <MicOff size={14} color="#EF4444" />
                ) : (
                  (() => {
@@ -1262,7 +1262,7 @@ export default function Call() {
                )}
             </div>
 
-            {activeScreenSharer === myUsername && (
+            {activeScreenSharer === myPeerId && (
               <div className="hover-btn" style={{ position: "absolute", top: "50%", left: "50%", display: "flex", gap: 12, zIndex: 10 }}>
                 <button onClick={stopScreenSharing} style={{ background: "rgba(239, 68, 68, 0.9)", border: "none", padding: "10px 20px", borderRadius: 12, color: "#fff", fontSize: 13, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", gap: 8, boxShadow: "0 8px 24px rgba(239, 68, 68, 0.4)", backdropFilter: "blur(4px)" }}>
                   <Monitor size={16} strokeWidth={2} /> Stop Sharing
@@ -1273,7 +1273,7 @@ export default function Call() {
               </div>
             )}
             
-            {activeScreenSharer && activeScreenSharer !== myUsername && (
+            {activeScreenSharer && activeScreenSharer !== myPeerId && (
               <div className="hover-btn" style={{ position: "absolute", top: "50%", left: "50%", display: "flex", gap: 12, zIndex: 10 }}>
                 <button onClick={() => setIsMaximized(prev => !prev)} style={{ background: "rgba(255, 255, 255, 0.15)", border: "1px solid rgba(255,255,255,0.1)", padding: "10px 20px", borderRadius: 12, color: "#fff", fontSize: 13, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", gap: 8, boxShadow: "0 8px 24px rgba(0, 0, 0, 0.2)", backdropFilter: "blur(4px)" }}>
                   {isMaximized ? <Minimize size={16} strokeWidth={2} /> : <Maximize size={16} strokeWidth={2} />} {isMaximized ? "Minimize" : "Fullscreen"}
@@ -1284,7 +1284,7 @@ export default function Call() {
 
           {activeScreenSharer ? (
             <div style={{ display: isMaximized ? "none" : "flex", flex: "1", flexDirection: "column", gap: "16px", overflowY: "auto", height: "100%", paddingRight: "4px" }}>
-              {activeScreenSharer !== myUsername && (
+              {activeScreenSharer !== myPeerId && (
                 <div style={getCardStyle(true)}>
                   <video
                       data-username={`${myDisplayName} (You)`}
