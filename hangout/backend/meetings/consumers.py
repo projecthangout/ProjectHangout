@@ -1,5 +1,7 @@
 import json
 from channels.generic.websocket import AsyncWebsocketConsumer
+from django.core.cache import cache
+from asgiref.sync import sync_to_async
 
 class CallConsumer(AsyncWebsocketConsumer):
     
@@ -11,6 +13,10 @@ class CallConsumer(AsyncWebsocketConsumer):
         self.username = "Someone"
 
         await self.channel_layer.group_add(self.room_group_name, self.channel_name)
+        
+        # Mark this room as active in the cache for 24 hours so validate_room can see it!
+        await sync_to_async(cache.set)(f"active_room_{self.room_name}", True, timeout=86400)
+        
         await self.accept()
 
     async def disconnect(self, close_code):

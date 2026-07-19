@@ -151,8 +151,7 @@ def delete_note(request, note_id):
     return JsonResponse({"error": "Invalid method"}, status=405)
 
 def validate_room(request, room_id):
-    # Rooms are ephemeral in WebSocket memory until a recording/note is saved.
-    # We only validate that the room code is a valid string.
+    # Rooms are ephemeral in WebSocket memory.
     if room_id and len(room_id) >= 3:
         return JsonResponse({'exists': True}, status=200)
     else:
