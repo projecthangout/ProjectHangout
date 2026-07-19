@@ -190,8 +190,6 @@ export default function Call() {
                     target: peerUsername
                 }));
             });
-            // General broadcast as a fallback
-            wsRef.current.send(JSON.stringify({ type: 'chat-message', text: chatInput.trim(), time, sender: currentSender }));
         }
         setChatInput("");
     };
