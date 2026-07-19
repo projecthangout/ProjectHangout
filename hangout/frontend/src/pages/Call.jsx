@@ -8,7 +8,10 @@ export default function Call() {
     const navigate = useNavigate();
 
     const API_URL = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
-    const WS_URL = import.meta.env.VITE_WS_URL || "ws://localhost:8000";
+    let rawWsUrl = import.meta.env.VITE_WS_URL || "ws://localhost:8000";
+    if (rawWsUrl.startsWith("http://")) rawWsUrl = rawWsUrl.replace("http://", "ws://");
+    if (rawWsUrl.startsWith("https://")) rawWsUrl = rawWsUrl.replace("https://", "wss://");
+    const WS_URL = rawWsUrl;
 
     // --- 1. Static Configuration ---
     const filters = [

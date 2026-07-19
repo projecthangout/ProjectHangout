@@ -157,8 +157,9 @@ def delete_note(request, note_id):
     return JsonResponse({"error": "Invalid method"}, status=405)
 
 def validate_room(request, room_id):
-    # Check if the room exists in the database
-    if Room.objects.filter(room_id=room_id).exists():
+    # Rooms are ephemeral in WebSocket memory until a recording/note is saved.
+    # We only validate that the room code is a valid string.
+    if room_id and len(room_id) >= 3:
         return JsonResponse({'exists': True}, status=200)
     else:
         return JsonResponse({'exists': False, 'error': 'Invalid Room Code'}, status=404)
