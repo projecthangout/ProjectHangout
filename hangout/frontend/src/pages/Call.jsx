@@ -330,8 +330,8 @@ export default function Call() {
 
             if (audioFileTrack) {
                 const musicStream = new MediaStream([audioFileTrack]);
-                Object.keys(peerConnectionsRef.current).forEach((username) => {
-                    const pc = peerConnectionsRef.current[username];
+                Object.keys(peerConnectionsRef.current).forEach((peerId) => {
+                    const pc = peerConnectionsRef.current[peerId];
                     pc.addTrack(audioFileTrack, musicStream);
                 });
                 wsRef.current?.send(JSON.stringify({ type: 'music-status', status: 'started', sender: myUsername }));
@@ -351,8 +351,8 @@ export default function Call() {
             if (audioTrack) {
                 const sysAudioStream = new MediaStream([audioTrack]);
                 // Add the audio track to all peers
-                Object.keys(peerConnectionsRef.current).forEach((username) => {
-                    const pc = peerConnectionsRef.current[username];
+                Object.keys(peerConnectionsRef.current).forEach((peerId) => {
+                    const pc = peerConnectionsRef.current[peerId];
                     pc.addTrack(audioTrack, sysAudioStream);
                 });
                 setShowMusicCard(false);
@@ -381,12 +381,12 @@ export default function Call() {
             setIsMicOn(audioTrack.enabled); 
             sessionStorage.setItem(`mic_state_${roomId}`, audioTrack.enabled);
             if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-                wsRef.current.send(JSON.stringify({ type: 'media-status', sender: sessionStorage.getItem('username'), isMicOn: audioTrack.enabled, isCameraOn: sessionStorage.getItem(`cam_state_${roomId}`) === 'true' }));
+                wsRef.current.send(JSON.stringify({ type: 'media-status', sender: myPeerId, isMicOn: audioTrack.enabled, isCameraOn: sessionStorage.getItem(`cam_state_${roomId}`) === 'true' }));
             }
             
             // Sync track state changes across all active mesh users
-            Object.keys(peerConnectionsRef.current).forEach((username) => {
-                const pc = peerConnectionsRef.current[username];
+            Object.keys(peerConnectionsRef.current).forEach((peerId) => {
+                const pc = peerConnectionsRef.current[peerId];
                 const senders = pc.getSenders();
                 const audioSender = senders.find(s => s.track && s.track.kind === 'audio');
                 if (audioSender) {
@@ -405,12 +405,12 @@ export default function Call() {
                 setIsMicOn(true);
                 sessionStorage.setItem(`mic_state_${roomId}`, 'true');
                 if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-                    wsRef.current.send(JSON.stringify({ type: 'media-status', sender: sessionStorage.getItem('username'), isMicOn: true, isCameraOn: sessionStorage.getItem(`cam_state_${roomId}`) === 'true' }));
+                    wsRef.current.send(JSON.stringify({ type: 'media-status', sender: myPeerId, isMicOn: true, isCameraOn: sessionStorage.getItem(`cam_state_${roomId}`) === 'true' }));
                 }
 
                 // Add to all existing peer connections
-                Object.keys(peerConnectionsRef.current).forEach((username) => {
-                    const pc = peerConnectionsRef.current[username];
+                Object.keys(peerConnectionsRef.current).forEach((peerId) => {
+                    const pc = peerConnectionsRef.current[peerId];
                     pc.addTrack(newAudioTrack, localStreamRef.current);
                 });
             } catch (err) {
@@ -427,12 +427,12 @@ export default function Call() {
             setIsCameraOn(videoTrack.enabled); 
             sessionStorage.setItem(`cam_state_${roomId}`, videoTrack.enabled);
             if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-                wsRef.current.send(JSON.stringify({ type: 'media-status', sender: sessionStorage.getItem('username'), isMicOn: sessionStorage.getItem(`mic_state_${roomId}`) === 'true', isCameraOn: videoTrack.enabled }));
+                wsRef.current.send(JSON.stringify({ type: 'media-status', sender: myPeerId, isMicOn: sessionStorage.getItem(`mic_state_${roomId}`) === 'true', isCameraOn: videoTrack.enabled }));
             }
             
             // Sync track state changes across all active mesh users
-            Object.keys(peerConnectionsRef.current).forEach((username) => {
-                const pc = peerConnectionsRef.current[username];
+            Object.keys(peerConnectionsRef.current).forEach((peerId) => {
+                const pc = peerConnectionsRef.current[peerId];
                 const senders = pc.getSenders();
                 const videoSender = senders.find(s => s.track && s.track.kind === 'video');
                 if (videoSender) {
@@ -455,12 +455,12 @@ export default function Call() {
                 setIsCameraOn(true);
                 sessionStorage.setItem(`cam_state_${roomId}`, 'true');
                 if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-                    wsRef.current.send(JSON.stringify({ type: 'media-status', sender: sessionStorage.getItem('username'), isMicOn: sessionStorage.getItem(`mic_state_${roomId}`) === 'true', isCameraOn: true }));
+                    wsRef.current.send(JSON.stringify({ type: 'media-status', sender: myPeerId, isMicOn: sessionStorage.getItem(`mic_state_${roomId}`) === 'true', isCameraOn: true }));
                 }
 
                 // Add to all existing peer connections
-                Object.keys(peerConnectionsRef.current).forEach((username) => {
-                    const pc = peerConnectionsRef.current[username];
+                Object.keys(peerConnectionsRef.current).forEach((peerId) => {
+                    const pc = peerConnectionsRef.current[peerId];
                     pc.addTrack(newVideoTrack, localStreamRef.current);
                 });
             } catch (err) {
@@ -471,13 +471,13 @@ export default function Call() {
     };
 
     // --- WebRTC Mesh Hub Setup ---
-    const initializePeerConnection = (peerUsername, isCaller, currentUsername) => {
-        if (peerConnectionsRef.current[peerUsername]) return peerConnectionsRef.current[peerUsername];
+    const initializePeerConnection = (peerId, isCaller, currentPeerId) => {
+        if (peerConnectionsRef.current[peerId]) return peerConnectionsRef.current[peerId];
 
         // Ensure user is visible in UI immediately, even if they have no active tracks yet
         setRemoteStreams((prev) => {
-            if (prev.find(p => p.username === peerUsername)) return prev;
-            return [...prev, { username: peerUsername, displayName: peerUsername, stream: null }];
+            if (prev.find(p => p.peerId === peerId)) return prev;
+            return [...prev, { peerId: peerId, displayName: "Connecting...", stream: null }];
         });
 
         const pc = new RTCPeerConnection({ iceServers: [{ urls: "stun:stun.l.google.com:19302" }] });
@@ -489,10 +489,10 @@ export default function Call() {
 
         // Handle incoming remote tracks
         pc.ontrack = (event) => {
-            console.log("Track received from:", peerUsername, event.streams[0]); // CRITICAL: Check console
+            console.log("Track received from:", peerId, event.streams[0]); // CRITICAL: Check console
             
             setRemoteStreams((prev) => {
-                const existingIndex = prev.findIndex(p => p.username === peerUsername);
+                const existingIndex = prev.findIndex(p => p.peerId === peerId);
                 if (existingIndex >= 0) {
                     const currentStream = prev[existingIndex].stream;
                     
@@ -519,7 +519,7 @@ export default function Call() {
                 }
                 
                 // Fallback, just in case
-                return [...prev, { username: peerUsername, displayName: peerUsername, stream: event.streams[0] }];
+                return [...prev, { peerId: peerId, displayName: peerId, stream: event.streams[0] }];
             });
         };
 
@@ -527,15 +527,15 @@ export default function Call() {
         pc.onicecandidate = (event) => {
             if (event.candidate) {
                 wsRef.current.send(JSON.stringify({
-                    type: 'ice-candidate', candidate: event.candidate, sender: currentUsername, target: peerUsername
+                    type: 'ice-candidate', candidate: event.candidate, sender: currentPeerId, target: peerId
                 }));
             }
         };
 
         pc.oniceconnectionstatechange = () => {
-            console.log("ICE Connection State with", peerUsername, ":", pc.iceConnectionState);
+            console.log("ICE Connection State with", peerId, ":", pc.iceConnectionState);
             if (pc.iceConnectionState === 'disconnected' || pc.iceConnectionState === 'failed' || pc.iceConnectionState === 'closed') {
-                handlePeerDisconnect(peerUsername);
+                handlePeerDisconnect(peerId);
             }
         };
 
@@ -551,7 +551,7 @@ export default function Call() {
                 const offer = await pc.createOffer();
                 if (pc.signalingState !== "stable") return;
                 await pc.setLocalDescription(offer);
-                wsRef.current.send(JSON.stringify({ type: 'offer', offer: pc.localDescription, sender: currentUsername, target: peerUsername }));
+                wsRef.current.send(JSON.stringify({ type: 'offer', offer: pc.localDescription, sender: currentPeerId, target: peerId }));
             } catch (err) {
                 console.error("Negotiation error:", err);
             } finally {
@@ -559,7 +559,7 @@ export default function Call() {
             }
         };
 
-        peerConnectionsRef.current[peerUsername] = pc;
+        peerConnectionsRef.current[peerId] = pc;
 
         if (isCaller) {
             // Force negotiation even if no tracks are present initially
@@ -569,7 +569,7 @@ export default function Call() {
     };
 
     // --- WebSocket Signal Multiplexer ---
-    const connectWebSocket = (username) => {
+    const connectWebSocket = (peerId) => {
         wsRef.current = new WebSocket(`${WS_URL}/ws/call/${roomId}/`);
         
         // Wrap send for logging
@@ -581,14 +581,14 @@ export default function Call() {
 
         wsRef.current.onopen = () => {
             console.log("WS OPEN");
-            const dn = sessionStorage.getItem('displayName') || username;
-            wsRef.current.send(JSON.stringify({ type: 'ready', username: username, displayName: dn, sender: username }));
-            wsRef.current.send(JSON.stringify({ type: 'request-state', sender: username }));
+            const dn = sessionStorage.getItem('displayName') || myUsername;
+            wsRef.current.send(JSON.stringify({ type: 'ready', username: myUsername, displayName: dn, sender: myPeerId }));
+            wsRef.current.send(JSON.stringify({ type: 'request-state', sender: myPeerId }));
             
             // Broadcast initial media status so existing peers know our state immediately
             wsRef.current.send(JSON.stringify({ 
                 type: 'media-status', 
-                sender: username, 
+                sender: myPeerId, 
                 isMicOn: sessionStorage.getItem(`mic_state_${roomId}`) === 'true', 
                 isCameraOn: sessionStorage.getItem(`cam_state_${roomId}`) === 'true' 
             }));
@@ -599,30 +599,30 @@ export default function Call() {
                 const data = JSON.parse(event.data);
                 
                 // Ignore echo
-                if (data.sender === username) return;
+                if (data.sender === myPeerId) return;
                 
                 console.log("WS RECV:", data.type, "from", data.sender, "target", data.target);
                 
                 // Multiplexing check: only process if intended for me
-                if (data.target && data.target !== username) return;
+                if (data.target && data.target !== myPeerId) return;
 
                 switch (data.type) {
                     case 'ready':
-                        initializePeerConnection(data.sender, true, username);
+                        initializePeerConnection(data.sender, true, myPeerId);
                         // Store the display name if provided
                         if (data.displayName) {
                             setRemoteStreams((prev) =>
-                                prev.map(p => p.username === data.sender
+                                prev.map(p => p.peerId === data.sender
                                     ? { ...p, displayName: data.displayName }
                                     : p
                                 )
                             );
                         }
                         // Reply with our display name so the newcomer knows ours
-                        wsRef.current.send(JSON.stringify({ type: 'display-name', displayName: sessionStorage.getItem('displayName') || username, sender: username, target: data.sender }));
+                        wsRef.current.send(JSON.stringify({ type: 'display-name', displayName: sessionStorage.getItem('displayName') || myUsername, sender: myPeerId, target: data.sender }));
                         break;
                     case 'offer': {
-                        const pcOffer = initializePeerConnection(data.sender, false, username);
+                        const pcOffer = initializePeerConnection(data.sender, false, myPeerId);
                         await pcOffer.setRemoteDescription(new RTCSessionDescription(data.offer));
                         
                         if (iceCandidateQueue.current[data.sender]) {
@@ -635,7 +635,7 @@ export default function Call() {
                         const answer = await pcOffer.createAnswer();
                         await pcOffer.setLocalDescription(answer);
                         wsRef.current.send(JSON.stringify({
-                            type: 'answer', answer: answer, sender: username, target: data.sender
+                            type: 'answer', answer: answer, sender: myPeerId, target: data.sender
                         }));
                         break;
                     }
@@ -655,7 +655,7 @@ export default function Call() {
                     case 'ice-candidate': {
                         let pcIce = peerConnectionsRef.current[data.sender];
                         if (!pcIce) {
-                             pcIce = initializePeerConnection(data.sender, false, username);
+                             pcIce = initializePeerConnection(data.sender, false, myPeerId);
                         }
                         if (pcIce.remoteDescription) {
                             try { await pcIce.addIceCandidate(new RTCIceCandidate(data.candidate)); }
@@ -674,18 +674,18 @@ export default function Call() {
                         break;
                     case 'request-state':
                         if (isScreenSharingRef.current) {
-                            wsRef.current.send(JSON.stringify({ type: 'screen-share-start', sender: username }));
+                            wsRef.current.send(JSON.stringify({ type: 'screen-share-start', sender: myPeerId }));
                         }
-                        wsRef.current.send(JSON.stringify({ type: 'timer-sync', startTime: getCallStartTime(), sender: username, target: data.sender }));
+                        wsRef.current.send(JSON.stringify({ type: 'timer-sync', startTime: getCallStartTime(), sender: myPeerId, target: data.sender }));
                         wsRef.current.send(JSON.stringify({ 
                             type: 'media-status', 
-                            sender: username, 
+                            sender: myPeerId, 
                             target: data.sender,
                             isMicOn: sessionStorage.getItem(`mic_state_${roomId}`) === 'true', 
                             isCameraOn: sessionStorage.getItem(`cam_state_${roomId}`) === 'true' 
                         }));
                         // Share our display name with the requester
-                        wsRef.current.send(JSON.stringify({ type: 'display-name', displayName: sessionStorage.getItem('displayName') || username, sender: username, target: data.sender }));
+                        wsRef.current.send(JSON.stringify({ type: 'display-name', displayName: sessionStorage.getItem('displayName') || myUsername, sender: myPeerId, target: data.sender }));
                         break;
                     case 'timer-sync': {
                         const currentStart = getCallStartTime();
@@ -696,7 +696,7 @@ export default function Call() {
                         break;
                     }
                     case 'user-left':
-                        handlePeerDisconnect(data.username || data.sender);
+                        handlePeerDisconnect(data.sender);
                         break;
                     case 'chat-message':
                         setMessages((m) => [...m, { from: data.sender, text: data.text, time: data.time }]);
@@ -708,12 +708,12 @@ export default function Call() {
                         break;
                     case 'display-name':
                         setRemoteStreams((prev) =>
-                            prev.map(p => p.username === data.sender ? { ...p, displayName: data.displayName } : p)
+                            prev.map(p => p.peerId === data.sender ? { ...p, displayName: data.displayName } : p)
                         );
                         break;
                     case 'media-status':
                         setRemoteStreams((prev) => 
-                            prev.map(p => p.username === data.sender ? { ...p, isMicOn: data.isMicOn, isCameraOn: data.isCameraOn } : p)
+                            prev.map(p => p.peerId === data.sender ? { ...p, isMicOn: data.isMicOn, isCameraOn: data.isCameraOn } : p)
                         );
                         break;
                 }
@@ -739,8 +739,8 @@ export default function Call() {
                 const screenAudioTrack = screenStream.getAudioTracks()[0];
                 screenVideoTrack.contentHint = 'detail'; // Prioritize resolution over framerate for crisp text
 
-                Object.keys(peerConnectionsRef.current).forEach((username) => {
-                    const pc = peerConnectionsRef.current[username];
+                Object.keys(peerConnectionsRef.current).forEach((peerId) => {
+                    const pc = peerConnectionsRef.current[peerId];
                     const senders = pc.getSenders();
                     const videoSender = senders.find(s => s.track && s.track.kind === 'video');
                     
@@ -784,8 +784,8 @@ export default function Call() {
         if (screenStreamRef.current) { screenStreamRef.current.getTracks().forEach(track => track.stop()); screenStreamRef.current = null; }
         
         const cameraVideoTrack = localStreamRef.current ? localStreamRef.current.getVideoTracks()[0] : null;
-        Object.keys(peerConnectionsRef.current).forEach((username) => {
-            const pc = peerConnectionsRef.current[username];
+        Object.keys(peerConnectionsRef.current).forEach((peerId) => {
+            const pc = peerConnectionsRef.current[peerId];
             const senders = pc.getSenders();
             const videoSender = senders.find(s => s.track && s.track.kind === 'video');
             if (videoSender) { 
@@ -817,12 +817,14 @@ export default function Call() {
             peerConnectionsRef.current[leftUsername].close();
             delete peerConnectionsRef.current[leftUsername];
         }
-        setRemoteStreams((prevStreams) => prevStreams.filter((item) => item.username !== leftUsername));
+        setRemoteStreams((prevStreams) => prevStreams.filter((item) => item.peerId !== leftUsername));
         setActiveScreenSharer((prev) => prev === leftUsername ? null : prev);
     };
 
     // --- On-Mount Initializer ---
     const location = useLocation();
+    const [myUsername, setMyUsername] = useState("");
+    const [myPeerId] = useState(() => `${sessionStorage.getItem('username') || "Anonymous"}_${Math.random().toString(36).substr(2, 6)}`);
     
     useEffect(() => {
         const storedUsername = sessionStorage.getItem('username');
@@ -1224,11 +1226,11 @@ export default function Call() {
             {/* Remote Sharer Video */}
             {activeScreenSharer && activeScreenSharer !== myUsername && (
               (() => {
-                const sharer = remoteStreams.find(p => p.username === activeScreenSharer);
+                const sharer = remoteStreams.find(p => p.peerId === activeScreenSharer);
                 const currentPeerFilterStyle = filters.find(f => f.id === peerFilter)?.style || "";
                 return sharer ? (
                   <video
-                    data-username={`${sharer.username} (Presenting)`}
+                    data-username={`${sharer.peerId} (Presenting)`}
                     autoPlay playsInline
                     ref={(el) => { 
                         if (el && el.srcObject !== sharer.stream) {
@@ -1248,12 +1250,12 @@ export default function Call() {
             {(activeScreenSharer === myUsername || !activeScreenSharer) && !(isCameraOn || isScreenSharing) && <VideoOff size={24} color="#2D3748" />}
             
             <div style={{ position: "absolute", bottom: 12, left: 12, background: "rgba(26,28,30,0.8)", padding: "6px 12px", borderRadius: 8, fontSize: 11, fontWeight: 600, display: "flex", alignItems: "center", gap: 6 }}>
-               {activeScreenSharer === myUsername ? `Your Screen` : (activeScreenSharer ? (() => { const sharer = remoteStreams.find(p => p.username === activeScreenSharer); return `${sharer?.displayName || activeScreenSharer}'s Screen`; })() : `${myDisplayName} (You)`)}
+               {activeScreenSharer === myUsername ? `Your Screen` : (activeScreenSharer ? (() => { const sharer = remoteStreams.find(p => p.peerId === activeScreenSharer); return `${sharer?.displayName || activeScreenSharer}'s Screen`; })() : `${myDisplayName} (You)`)}
                {!activeScreenSharer || activeScreenSharer === myUsername ? (
                  isMicOn ? <Mic size={14} color="#10B981" /> : <MicOff size={14} color="#EF4444" />
                ) : (
                  (() => {
-                   const sharer = remoteStreams.find(p => p.username === activeScreenSharer);
+                   const sharer = remoteStreams.find(p => p.peerId === activeScreenSharer);
                    return sharer ? (
                      sharer.isMicOn !== false ? <Mic size={14} color="#10B981" /> : <MicOff size={14} color="#EF4444" />
                    ) : null;
@@ -1302,9 +1304,9 @@ export default function Call() {
               {remoteStreams.filter(p => p.username !== activeScreenSharer).map((peer) => {
                 const currentPeerFilterStyle = filters.find(f => f.id === peerFilter)?.style || "";
                 return (
-                  <div key={peer.username} style={getCardStyle(true)}>
+                  <div key={peer.peerId} style={getCardStyle(true)}>
                     <video
-                      data-username={peer.displayName || peer.username}
+                      data-username={peer.displayName || peer.peerId}
                       autoPlay playsInline
                       ref={(el) => { 
                           if (el && el.srcObject !== peer.stream) {
@@ -1317,7 +1319,7 @@ export default function Call() {
                     />
                     {peer.isCameraOn === false && <VideoOff size={24} color="#2D3748" />}
                     <div style={{ position: "absolute", bottom: 12, left: 12, background: "rgba(26,28,30,0.8)", padding: "6px 12px", borderRadius: 8, fontSize: 11, fontWeight: 600, display: "flex", alignItems: "center", gap: 6 }}>
-                       👤 {peer.displayName || peer.username}
+                       👤 {peer.displayName || peer.peerId}
                        {peer.isMicOn !== false ? <Mic size={14} color="#10B981" /> : <MicOff size={14} color="#EF4444" />}
                     </div>
                   </div>
@@ -1328,9 +1330,9 @@ export default function Call() {
             remoteStreams.map((peer) => {
               const currentPeerFilterStyle = filters.find(f => f.id === peerFilter)?.style || "";
               return (
-                <div key={peer.username} style={getCardStyle()}>
+                <div key={peer.peerId} style={getCardStyle()}>
                   <video
-                    data-username={peer.displayName || peer.username}
+                    data-username={peer.displayName || peer.peerId}
                     autoPlay playsInline
                     ref={(el) => { 
                         if (el && el.srcObject !== peer.stream) {
@@ -1343,7 +1345,7 @@ export default function Call() {
                   />
                   {peer.isCameraOn === false && <VideoOff size={24} color="#2D3748" />}
                   <div style={{ position: "absolute", bottom: 12, left: 12, background: "rgba(26,28,30,0.8)", padding: "6px 12px", borderRadius: 8, fontSize: 11, fontWeight: 600, display: "flex", alignItems: "center", gap: 6 }}>
-                     👤 {peer.displayName || peer.username}
+                     👤 {peer.displayName || peer.peerId}
                      {peer.isMicOn !== false ? <Mic size={14} color="#10B981" /> : <MicOff size={14} color="#EF4444" />}
                   </div>
                 </div>
