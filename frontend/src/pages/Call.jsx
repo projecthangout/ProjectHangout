@@ -1135,9 +1135,8 @@ export default function Call() {
             <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 12, color: "#10B981", letterSpacing: "0.07em" }}>{roomId}</span>
             {copied ? <Check size={12} strokeWidth={2.5} color="#10B981" /> : <Copy size={12} strokeWidth={2} />}
           </button>
-          <div style={{ display: "flex", alignItems: "center", gap: 7, background: isRecording ? "rgba(239,68,68,0.15)" : "rgba(239,68,68,0.08)", border: isRecording ? "1px solid rgba(239,68,68,0.3)" : "1px solid rgba(239,68,68,0.18)", borderRadius: 999, padding: "6px 13px" }}>
-            {isRecording && <span className="rec-dot" />}
-            <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11.5, color: "#EF4444" }}>{fmt(elapsed)}</span>
+          <div style={{ display: "flex", alignItems: "center", gap: 7, background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.18)", borderRadius: 999, padding: "6px 13px" }}>
+            <span className="rec-dot" />
           </div>
         </div>
 
