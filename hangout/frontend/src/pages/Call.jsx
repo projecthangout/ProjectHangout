@@ -823,7 +823,6 @@ export default function Call() {
 
     // --- On-Mount Initializer ---
     const location = useLocation();
-    const [myUsername, setMyUsername] = useState("");
     const [myPeerId] = useState(() => `${sessionStorage.getItem('username') || "Anonymous"}_${Math.random().toString(36).substr(2, 6)}`);
     
     useEffect(() => {
