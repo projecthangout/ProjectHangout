@@ -48,6 +48,10 @@ urlpatterns = [
     path('api/validate-room/<str:room_id>/', meeting_views.validate_room, name='validate_room'),
 ]
 
-# Append media file asset lookups for local system debugging
-if settings.DEBUG:
-    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+from django.urls import re_path
+from django.views.static import serve
+
+# Unconditionally serve media files to allow recordings to play on Render
+urlpatterns += [
+    re_path(r'^media/(?P<path>.*)$', serve, {'document_root': settings.MEDIA_ROOT}),
+]
