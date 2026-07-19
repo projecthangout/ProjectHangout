@@ -569,7 +569,7 @@ export default function Call() {
     };
 
     // --- WebSocket Signal Multiplexer ---
-    const connectWebSocket = (peerId) => {
+    const connectWebSocket = () => {
         wsRef.current = new WebSocket(`${WS_URL}/ws/call/${roomId}/`);
         
         // Wrap send for logging
@@ -857,15 +857,15 @@ export default function Call() {
                     }
                     setIsCameraOn(camEnabled);
                     setIsMicOn(micEnabled);
-                    connectWebSocket(storedUsername);
+                    connectWebSocket();
                 })
                 .catch(err => {
                     console.error("Error accessing media constraints:", err);
-                    connectWebSocket(storedUsername); // fallback to view-only
+                    connectWebSocket(); // fallback to view-only
                 });
         } else {
             // View-only mode
-            connectWebSocket(storedUsername);
+            connectWebSocket();
         }
 
         if (localAudioElementRef.current) {
