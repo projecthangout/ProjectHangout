@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { API_BASE_URL, WS_BASE_URL } from "../lib/utils";
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import axios from 'axios';
-import { Mic, MicOff, Video, VideoOff, Monitor, MessageSquare, FileText, Sliders, PhoneOff, Copy, Check, Music, X, Send, Circle, Save, Maximize, Minimize } from 'lucide-react';
+import { Mic, MicOff, Video, VideoOff, Monitor, MessageSquare, FileText, Sliders, PhoneOff, Copy, Check, Music, X, Send, Circle, Save, Maximize, Minimize, Users } from 'lucide-react';
 
 export default function Call() {
     const { roomId } = useParams();
@@ -45,22 +45,77 @@ export default function Call() {
     // --- 4. Application State ---
     const [isRecording, setIsRecording] = useState(false);
     // eslint-disable-next-line no-unused-vars
-    const [uploadedFileName, setUploadedFileName] = useState("");
     
     const [showMusicCard, setShowMusicCard] = useState(false);
     const [musicVolume] = useState(0.2);
 
 
-    const [isMicOn, setIsMicOn] = useState(false);
+    const [isMicOn, setIsMicOn] = useState(false);    
     const [isCameraOn, setIsCameraOn] = useState(false);
     const [isScreenSharing, setIsScreenSharing] = useState(false);
+    const [isRecording, setIsRecording] = useState(false);
+    const [activeScreenSharer, setActiveScreenSharer] = useState(null);
+    const [isMaximized, setIsMaximized] = useState(false);
+
+    // Panels and Chat
+    const [panel, setPanel] = useState(null); // 'notes' | 'chat' | 'people'
+    const [chatInput, setChatInput] = useState('');
+    const [messages, setMessages] = useState([]);
+    
+    // Mic Volume indicator
+    const [micVolume, setMicVolume] = useState(0);
+
+    // Initialization hook for AudioContext
+    useEffect(() => {
+        let audioContext;
+        let analyzer;
+        let microphone;
+        let animationFrame;
+
+        if (isMicOn && localStreamRef.current) {
+            const audioTracks = localStreamRef.current.getAudioTracks();
+            if (audioTracks.length > 0) {
+                try {
+                    audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                    analyzer = audioContext.createAnalyser();
+                    analyzer.fftSize = 256;
+                    
+                    const stream = new MediaStream([audioTracks[0]]);
+                    microphone = audioContext.createMediaStreamSource(stream);
+                    microphone.connect(analyzer);
+
+                    const dataArray = new Uint8Array(analyzer.frequencyBinCount);
+
+                    const updateVolume = () => {
+                        analyzer.getByteFrequencyData(dataArray);
+                        let sum = 0;
+                        for (let i = 0; i < dataArray.length; i++) sum += dataArray[i];
+                        const average = sum / dataArray.length;
+                        setMicVolume(Math.min(100, Math.round((average / 255) * 100 * 2.5)));
+                        animationFrame = requestAnimationFrame(updateVolume);
+                    };
+                    updateVolume();
+                } catch (e) {
+                    console.warn("AudioContext error", e);
+                }
+            }
+        } else {
+            setMicVolume(0);
+        }
+
+        return () => {
+            if (animationFrame) cancelAnimationFrame(animationFrame);
+            if (microphone) microphone.disconnect();
+            if (audioContext && audioContext.state !== 'closed') audioContext.close();
+        };
+    }, [isMicOn, localStreamRef.current]);
+
+    // Notes
+    // eslint-disable-next-line no-unused-vars
+    const [uploadedFileName, setUploadedFileName] = useState("");
     const isScreenSharingRef = useRef(false);
     useEffect(() => { isScreenSharingRef.current = isScreenSharing; }, [isScreenSharing]);
 
-    const [activeScreenSharer, setActiveScreenSharer] = useState(null);
-    const [isMaximized, setIsMaximized] = useState(false);
-    const [activeFilter, setActiveFilter] = useState("none"); 
-    const [peerFilter, setPeerFilter] = useState("none");
     const [remoteStreams, setRemoteStreams] = useState([]); // Tracks mesh participants
     const [myUsername, setMyUsername] = useState("");
     const [myDisplayName, setMyDisplayName] = useState("");
@@ -1356,12 +1411,63 @@ export default function Call() {
           >
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "13px 14px", flexShrink: 0, borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
               <div style={{ display: "flex", gap: 2, background: "rgba(255,255,255,0.04)", borderRadius: 999, padding: 3 }}>
-                {["notes", "chat"].map((tab) => (
-                  <button key={tab} className={`ptab ${panel === tab ? "ptab-on" : "ptab-off"}`} onClick={() => setPanel(tab)}>{tab}</button>
+                {["people", "chat", "notes"].map((tab) => (
+                  <button key={tab} className={`ptab ${panel === tab ? "ptab-on" : "ptab-off"}`} onClick={() => setPanel(tab)} style={{ textTransform: "capitalize" }}>{tab}</button>
                 ))}
               </div>
               <button onClick={() => setPanel(null)} style={{ background: "transparent", border: "none", cursor: "pointer", color: "#2D3748", display: "flex", padding: 5, borderRadius: 6, outline: "none" }}><X size={15} strokeWidth={2} /></button>
             </div>
+
+            {panel === "people" && (
+              <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
+                <div style={{ padding: "14px 16px", borderBottom: "1px solid rgba(255,255,255,0.05)", fontSize: 13, fontWeight: 600, color: "#CBD5E1" }}>
+                  In call ({remoteStreams.length + 1})
+                </div>
+                <div style={{ flex: 1, overflowY: "auto", padding: "12px", display: "flex", flexDirection: "column", gap: 8 }}>
+                  {/* Local User */}
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 14px", background: "rgba(255,255,255,0.03)", borderRadius: 12, border: "1px solid rgba(255,255,255,0.05)" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                      <div style={{ width: 32, height: 32, borderRadius: "50%", background: "rgba(16,185,129,0.15)", color: "#10B981", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontWeight: 700 }}>
+                        {myDisplayName[0]?.toUpperCase()}
+                      </div>
+                      <div style={{ display: "flex", flexDirection: "column" }}>
+                        <span style={{ fontSize: 13, color: "#fff", fontWeight: 600 }}>{myDisplayName} (You)</span>
+                        <span style={{ fontSize: 11, color: isMicOn ? "#10B981" : "#94A3B8" }}>
+                          {isMicOn ? "Microphone active" : "Microphone off"}
+                        </span>
+                      </div>
+                    </div>
+                    <div style={{ display: "flex", gap: 10, color: "#94A3B8", alignItems: "center" }}>
+                      {isMicOn && (
+                        <div style={{ display: "flex", gap: 2, height: 12, alignItems: "flex-end", marginRight: 4 }}>
+                          {[1, 2, 3].map(i => (
+                            <div key={i} style={{ width: 3, background: "#10B981", borderRadius: 2, height: Math.max(2, (micVolume / 100) * (i * 4)), transition: "height 0.1s ease" }} />
+                          ))}
+                        </div>
+                      )}
+                      {isMicOn ? <Mic size={16} color="#10B981" /> : <MicOff size={16} color="#EF4444" />}
+                      {isCameraOn ? <Video size={16} color="#10B981" /> : <VideoOff size={16} color="#EF4444" />}
+                    </div>
+                  </div>
+                  
+                  {/* Remote Users */}
+                  {remoteStreams.map(peer => (
+                    <div key={peer.username} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 14px", borderRadius: 12, border: "1px solid transparent", transition: "background 0.2s" }} onMouseEnter={(e) => e.currentTarget.style.background = "rgba(255,255,255,0.02)"} onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                        <div style={{ width: 32, height: 32, borderRadius: "50%", background: "rgba(99,102,241,0.15)", color: "#818CF8", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontWeight: 700 }}>
+                          {(peer.displayName || peer.username)[0]?.toUpperCase()}
+                        </div>
+                        <span style={{ fontSize: 13, color: "#E2E8F0", fontWeight: 500 }}>{peer.displayName || peer.username}</span>
+                      </div>
+                      <div style={{ display: "flex", gap: 10, color: "#94A3B8", alignItems: "center" }}>
+                        {peer.isMicOn !== false ? <Mic size={16} color="#10B981" /> : <MicOff size={16} color="#EF4444" />}
+                        {peer.isCameraOn !== false ? <Video size={16} color="#10B981" /> : <VideoOff size={16} color="#EF4444" />}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {panel === "notes" && (
               <div style={{ flex: 1, display: "flex", flexDirection: "column", padding: "14px 16px", overflow: "hidden" }}>
@@ -1441,6 +1547,7 @@ export default function Call() {
 
           <div style={{ width: 1, height: 22, background: "rgba(255,255,255,0.07)", margin: "0 4px", flexShrink: 0 }} />
 
+          <button className={`cb ${panel === "people" ? "cb-active" : "cb-default"}`} onClick={() => togglePanel("people")} title="Participants"><Users size={17} strokeWidth={1.75} /></button>
           <button className={`cb ${panel === "chat" ? "cb-active" : "cb-default"}`} onClick={() => togglePanel("chat")} title="Chat"><MessageSquare size={17} strokeWidth={1.75} /></button>
           <button className={`cb ${panel === "notes" ? "cb-active" : "cb-default"}`} onClick={() => togglePanel("notes")} title="Notes"><FileText size={17} strokeWidth={1.75} /></button>
           <button className={`cb ${showFilters ? "cb-active" : "cb-default"}`} onClick={toggleFilters} title="Filters"><Sliders size={17} strokeWidth={1.75} /></button>
