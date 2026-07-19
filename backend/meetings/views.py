@@ -148,7 +148,27 @@ def delete_note(request, note_id):
             return JsonResponse({"error": str(e)}, status=500)
     return JsonResponse({"error": "Invalid method"}, status=405)
 
+import random
+import string
+
+def generate_unique_room_id():
+    chars = string.ascii_letters + string.digits + "-_"
+    while True:
+        room_id = ''.join(random.choices(chars, k=8))
+        if not Room.objects.filter(room_id=room_id).exists():
+            return room_id
+
+@csrf_exempt
+def create_room(request):
+    if request.method == "POST":
+        try:
+            room_id = generate_unique_room_id()
+            room = Room.objects.create(room_id=room_id)
+            return JsonResponse({'room_id': room.room_id}, status=201)
+        except Exception as e:
+            return JsonResponse({'error': str(e)}, status=500)
+    return JsonResponse({"error": "Invalid method"}, status=405)
+
 def validate_room(request, room_id):
-    # Automatically create the room if it doesn't exist yet so people can join new calls
-    actual_room, created = Room.objects.get_or_create(room_id=room_id)
-    return JsonResponse({'exists': True}, status=200)
+    exists = Room.objects.filter(room_id=room_id).exists()
+    return JsonResponse({'exists': exists}, status=200 if exists else 404)

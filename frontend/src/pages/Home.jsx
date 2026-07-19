@@ -49,14 +49,7 @@ function DigitalClock() {
   );
 }
 
-const generateRoomId = () => {
-  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
-  let result = '';
-  for (let i = 0; i < 8; i++) {
-    result += chars.charAt(Math.floor(Math.random() * chars.length));
-  }
-  return result;
-};
+
 export default function Home() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -164,15 +157,20 @@ export default function Home() {
     }
   }, [username]);
 
-  const handleNewCall = () => {
+  const handleNewCall = async () => {
     if (!username) {
       alert("Please sign in first!");
       navigate("/sign-in");
       return;
     }
-    // Use the new custom function to generate the alphanumeric + special char ID
-    const roomId = generateRoomId(); 
-    setPreJoinRoomId(roomId);
+    
+    try {
+      const response = await axios.post(`${API_BASE_URL}/api/create-room/`);
+      setPreJoinRoomId(response.data.room_id);
+    } catch (error) {
+      console.error("Failed to create room", error);
+      alert("Failed to start meeting.");
+    }
   };
 
  const handleJoinCall = async () => {
