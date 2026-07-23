@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import auth from '../lib/neonAuth';
+import { API_BASE_URL } from '../lib/utils';
 import { ShaderGradient, ShaderGradientCanvas } from '@shadergradient/react';
 
 const SignUp = () => {
@@ -48,7 +49,7 @@ const SignUp = () => {
     if (error) throw error;
 
     // Step 2: Create the same user in Django
-    const response = await fetch("http://127.0.0.1:8000/api/signup/", {
+    const response = await fetch(`${API_BASE_URL}/api/signup/`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",

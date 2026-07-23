@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import axios from 'axios';
+import { API_BASE_URL, WS_BASE_URL } from '../lib/utils';
 import { Mic, MicOff, Video, VideoOff, Monitor, MessageSquare, FileText, Sliders, PhoneOff, Copy, Check, Music, X, Send, Circle, Save, Maximize, Minimize } from 'lucide-react';
 
 export default function Call() {
@@ -263,7 +264,7 @@ export default function Call() {
                     formData.append('username', myUsername);
 
                     try {
-                        await axios.post('http://127.0.0.1:8000/api/recordings/upload/', formData, {
+                        await axios.post(`${API_BASE_URL}/api/recordings/upload/`, formData, {
                             headers: { 'Content-Type': 'multipart/form-data' }
                         });
                         setNotification("✅ Recording successfully saved to your account!");
@@ -549,7 +550,7 @@ export default function Call() {
 
     // --- WebSocket Signal Multiplexer ---
     const connectWebSocket = (username) => {
-        wsRef.current = new WebSocket(`ws://localhost:8000/ws/call/${roomId}/`);
+        wsRef.current = new WebSocket(`${WS_BASE_URL}/ws/call/${roomId}/`);
         
         // Wrap send for logging
         const originalSend = wsRef.current.send.bind(wsRef.current);
@@ -1350,7 +1351,7 @@ export default function Call() {
                       <button onClick={async () => {
                         if (!notes.trim()) { setNotification("Notes are empty!"); setTimeout(() => setNotification(""), 2000); return; }
                         try {
-                          await axios.post('http://127.0.0.1:8000/api/notes/save/', { room_id: roomId, username: myUsername, content: notes });
+                          await axios.post(`${API_BASE_URL}/api/notes/save/`, { room_id: roomId, username: myUsername, content: notes });
                           setNotification("✅ Notes saved successfully!");
                         } catch (err) { console.error(err); setNotification("✕ Failed to save notes."); }
                         setTimeout(() => setNotification(""), 2000);
