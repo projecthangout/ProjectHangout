@@ -1,0 +1,11 @@
+node_modules/
+__pycache__/
+*.pyc
+.env
+.venv/
+venv/
+env/
+frontend/test-results/
+backend/media/recordings/
+*.webm
+.DS_Store

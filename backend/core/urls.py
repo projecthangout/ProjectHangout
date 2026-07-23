@@ -45,7 +45,6 @@ urlpatterns = [
         meeting_views.delete_note,
         name="delete_note",
     ),
-    path('api/create-room/', meeting_views.create_room, name='create_room'),
     path('api/validate-room/<str:room_id>/', meeting_views.validate_room, name='validate_room'),
 ]
 

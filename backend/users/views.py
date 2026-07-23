@@ -15,7 +15,10 @@ def signup(request):
     password = request.data.get("password")
 
     if User.objects.filter(username=username).exists():
-        return Response({"error": "Username already exists"}, status=400)
+     return Response({"error": "Username already exists"}, status=400)
+ 
+    if User.objects.filter(email=email).exists():
+     return Response({"error": "Email already exists"}, status=400)
 
     User.objects.create_user(username=username, email=email, password=password)
 

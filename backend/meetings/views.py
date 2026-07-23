@@ -1,4 +1,5 @@
 from django.contrib.auth.models import User
+from django.db.models import Q
 
 # Change this line at the top of your meetings/views.py file:
 from .models import MeetingRecording, Room, MeetingNote
@@ -11,40 +12,51 @@ from django.utils import timezone
 
 
 @csrf_exempt
-@csrf_exempt
 def upload_recording(request):
+    print("===== UPLOAD HIT =====")
+    print("METHOD:", request.method)
+    print("POST:", request.POST)
+    print("FILES:", request.FILES)
+
     if request.method == "POST":
         video_file = request.FILES.get("video_file")
         room_uuid = request.POST.get("room_id")
         username_str = request.POST.get("username")
 
-        if not video_file or not room_uuid or not username_str:
-            return JsonResponse({"error": "Missing required fields"}, status=400)
+        print("username:", username_str)
+        print("room:", room_uuid)
+        print("video:", video_file)
 
         try:
-            # 1. Dynamically fetch or create the user if they're authenticated via frontend
-            actual_user, user_created = User.objects.get_or_create(username=username_str)
+            actual_user = User.objects.filter(Q(username=username_str) | Q(email=username_str)).first()
+            if not actual_user:
+                raise Exception("User not found")
+            print("User found:", actual_user)
 
-            # 2. Dynamically fetch or create the room
-            actual_room, room_created = Room.objects.get_or_create(room_id=room_uuid)
+            actual_room, created = Room.objects.get_or_create(room_id=room_uuid)
+            print("Room:", actual_room, "Created:", created)
 
-            # 3. Save the recording with relation keys
             recording = MeetingRecording.objects.create(
-                user=actual_user, room=actual_room, video_file=video_file
+                user=actual_user,
+                room=actual_room,
+                video_file=video_file
             )
-            return JsonResponse({"message": "Upload successful", "id": recording.id})
+
+            print("Recording saved!")
+
+            return JsonResponse({"message": "Success"})
 
         except Exception as e:
-            return JsonResponse(
-                {"error": str(e)}, status=500
-            )
+            print("ERROR:", str(e))
+            return JsonResponse({"error": str(e)}, status=500)
 
     return JsonResponse({"error": "Invalid method"}, status=405)
 
-
 def get_user_recordings(request, username):
-    # Fetch the actual user object or create it
-    actual_user, created = User.objects.get_or_create(username=username)
+    # Fetch the actual user object first to filter relational recordings
+    actual_user = User.objects.filter(Q(username=username) | Q(email=username)).first()
+    if not actual_user:
+        return JsonResponse({"error": "User not found"}, status=404)
 
     # 1. Clean up expired records on-the-fly using the 'user' relational field
     expired_recordings = MeetingRecording.objects.filter(
@@ -108,20 +120,26 @@ def save_note(request):
             if not room_uuid or not username_str or content is None:
                 return JsonResponse({"error": "Missing required fields"}, status=400)
 
-            actual_user, user_created = User.objects.get_or_create(username=username_str)
-            actual_room, room_created = Room.objects.get_or_create(room_id=room_uuid)
+            actual_user = User.objects.filter(Q(username=username_str) | Q(email=username_str)).first()
+            if not actual_user:
+                return JsonResponse({"error": "User not found"}, status=404)
+            actual_room, created = Room.objects.get_or_create(room_id=room_uuid)
 
             note = MeetingNote.objects.create(
                 user=actual_user, room=actual_room, content=content
             )
             return JsonResponse({"message": "Note saved successfully", "id": note.id})
+        except User.DoesNotExist:
+            return JsonResponse({"error": "User not found"}, status=404)
         except Exception as e:
             return JsonResponse({"error": str(e)}, status=500)
     return JsonResponse({"error": "Invalid method"}, status=405)
 
 
 def get_user_notes(request, username):
-    actual_user, created = User.objects.get_or_create(username=username)
+    actual_user = User.objects.filter(Q(username=username) | Q(email=username)).first()
+    if not actual_user:
+        return JsonResponse({"error": "User not found"}, status=404)
 
     notes = MeetingNote.objects.filter(user=actual_user).order_by("-created_at")
     data = []
@@ -148,27 +166,9 @@ def delete_note(request, note_id):
             return JsonResponse({"error": str(e)}, status=500)
     return JsonResponse({"error": "Invalid method"}, status=405)
 
-import random
-import string
-
-def generate_unique_room_id():
-    chars = string.ascii_letters + string.digits + "-_"
-    while True:
-        room_id = ''.join(random.choices(chars, k=8))
-        if not Room.objects.filter(room_id=room_id).exists():
-            return room_id
-
-@csrf_exempt
-def create_room(request):
-    if request.method == "POST":
-        try:
-            room_id = generate_unique_room_id()
-            room = Room.objects.create(room_id=room_id)
-            return JsonResponse({'room_id': room.room_id}, status=201)
-        except Exception as e:
-            return JsonResponse({'error': str(e)}, status=500)
-    return JsonResponse({"error": "Invalid method"}, status=405)
-
 def validate_room(request, room_id):
-    exists = Room.objects.filter(room_id=room_id).exists()
-    return JsonResponse({'exists': exists}, status=200 if exists else 404)
+    # Check if the room exists in the database
+    if Room.objects.filter(room_id=room_id).exists():
+        return JsonResponse({'exists': True}, status=200)
+    else:
+        return JsonResponse({'exists': False, 'error': 'Invalid Room Code'}, status=404)

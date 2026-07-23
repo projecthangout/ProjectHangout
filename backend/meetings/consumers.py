@@ -1,17 +1,28 @@
 import json
 from channels.generic.websocket import AsyncWebsocketConsumer
+from channels.db import database_sync_to_async
+from .models import Room
 
 class CallConsumer(AsyncWebsocketConsumer):
-    
+    @database_sync_to_async
+    def create_room_if_not_exists(self):
+     Room.objects.get_or_create(room_id=self.room_name)
+
     async def connect(self):
-        self.room_name = self.scope["url_route"]["kwargs"]["room_id"]
-        self.room_group_name = f"call_{self.room_name}"
+     self.room_name = self.scope["url_route"]["kwargs"]["room_id"]
+     self.room_group_name = f"call_{self.room_name}"
 
-        # Initialize an empty username tracker on this specific channel connection
-        self.username = "Someone"
+     self.username = "Someone"
 
-        await self.channel_layer.group_add(self.room_group_name, self.channel_name)
-        await self.accept()
+    # Create room in DB if it doesn't exist
+     await self.create_room_if_not_exists()
+
+     await self.channel_layer.group_add(
+        self.room_group_name,
+        self.channel_name
+    )
+
+     await self.accept()
 
     async def disconnect(self, close_code):
         # Broadcast to the group that this specific user has disconnected

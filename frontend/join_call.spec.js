@@ -36,7 +36,7 @@ test('Bot joins call', async ({ browser }) => {
   await page.waitForURL('**/sign-in');
 
   console.log("Signing in...");
-  await page.fill('input[id="username"]', username);
+  await page.fill('input[id="email"]', `${username}@test.com`);
   await page.fill('input[id="password"]', password);
   
   await Promise.all([
@@ -47,7 +47,7 @@ test('Bot joins call', async ({ browser }) => {
   console.log("Waiting for home page...");
   await page.waitForURL('**/home');
 
-  const roomId = 's7ggkgr';
+  const roomId = 'xatsC0zi';
   console.log(`Joining room ${roomId}...`);
   
   await page.fill('input[placeholder="Enter meeting code"]', roomId);

@@ -30,32 +30,52 @@ const SignUp = () => {
   };
 
   const handleSignUp = async (e) => {
-    e.preventDefault();
-    setLoading(true);
+  e.preventDefault();
+  setLoading(true);
 
-    try {
-      const { data, error } = await auth.signUp({
+  try {
+    // Step 1: Create user in Neon
+    const { data, error } = await auth.signUp({
+      email: formData.email,
+      password: formData.password,
+      options: {
+        data: {
+          name: formData.name,
+        },
+      },
+    });
+
+    if (error) throw error;
+
+    // Step 2: Create the same user in Django
+    const response = await fetch("http://127.0.0.1:8000/api/signup/", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        username: formData.name, // Django username
         email: formData.email,
         password: formData.password,
-        options: { data: { name: formData.name } },
-      });
+      }),
+    });
 
-      if (error) throw error;
+    const result = await response.json();
 
-      showToast("Signup successful! Redirecting to sign in...", "success");
-      setTimeout(() => navigate("/sign-in"), 1500);
-    } catch (error) {
-      console.error(error);
-      const errorMessage = error?.message || error?.error_description || "Signup failed. Please try again.";
-      if (errorMessage.toLowerCase().includes('network') || errorMessage.toLowerCase().includes('fetch')) {
-        showToast("Cannot reach Neon auth service. Please try again later.", "error");
-      } else {
-        showToast(errorMessage, "error");
-      }
-    } finally {
-      setLoading(false);
+    if (!response.ok) {
+      throw new Error(result.error || "Failed to create Django user");
     }
-  };
+
+    showToast("Signup successful! Redirecting to sign in...", "success");
+    setTimeout(() => navigate("/sign-in"), 1500);
+
+  } catch (error) {
+    console.error(error);
+    showToast(error.message || "Signup failed", "error");
+  } finally {
+    setLoading(false);
+  }
+};
 
   return (
     <div className="flex min-h-screen w-full flex-col items-center justify-center bg-black p-4 relative overflow-hidden">

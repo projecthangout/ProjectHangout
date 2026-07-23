@@ -1,8 +1,7 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
-import { API_BASE_URL, WS_BASE_URL } from "../lib/utils";
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import axios from 'axios';
-import { Mic, MicOff, Video, VideoOff, Monitor, MessageSquare, FileText, Sliders, PhoneOff, Copy, Check, Music, X, Send, Circle, Save, Maximize, Minimize, Users } from 'lucide-react';
+import { Mic, MicOff, Video, VideoOff, Monitor, MessageSquare, FileText, Sliders, PhoneOff, Copy, Check, Music, X, Send, Circle, Save, Maximize, Minimize } from 'lucide-react';
 
 export default function Call() {
     const { roomId } = useParams();
@@ -21,94 +20,39 @@ export default function Call() {
     
     
     // --- 2. Element References ---
-    const [activeFilter, setActiveFilter] = useState('none');
-    const [peerFilter, setPeerFilter] = useState('none');
-    const iceCandidateQueue = useRef({});
-    
-    // WebRTC References
-    const peerConnectionsRef = useRef({});
-    const dataChannelsRef = useRef({});
+    const localVideoRef = useRef(null);
+    const wsRef = useRef(null);
     const localStreamRef = useRef(null);
     const screenStreamRef = useRef(null);
-    const musicStreamRef = useRef(null);
-    const screenSendersRef = useRef({}); // Track screen share senders per peer
-    const wsRef = useRef(null);
-    const localVideoRef = useRef(null);
     const fileInputRef = useRef(null);
     const localAudioElementRef = useRef(new Audio());
     const mediaRecorderRef = useRef(null);
     const recordedChunksRef = useRef([]);
     const animationFrameIdRef = useRef(null);
-    const messagesRef = useRef([]);
+
+    // --- 3. Multi-User Connection Maps ---
+    const peerConnectionsRef = useRef({}); 
+    const iceCandidateQueue = useRef({});
 
     // --- 4. Application State ---
     const [isRecording, setIsRecording] = useState(false);
     // eslint-disable-next-line no-unused-vars
+    const [uploadedFileName, setUploadedFileName] = useState("");
     
     const [showMusicCard, setShowMusicCard] = useState(false);
     const [musicVolume] = useState(0.2);
 
 
-    const [isMicOn, setIsMicOn] = useState(false);    
+    const [isMicOn, setIsMicOn] = useState(false);
     const [isCameraOn, setIsCameraOn] = useState(false);
     const [isScreenSharing, setIsScreenSharing] = useState(false);
-    const [activeScreenSharer, setActiveScreenSharer] = useState(null);
-    const [isMaximized, setIsMaximized] = useState(false);
-    
-    // Mic Volume indicator
-    const [micVolume, setMicVolume] = useState(0);
-
-    // Initialization hook for AudioContext
-    useEffect(() => {
-        let audioContext;
-        let analyzer;
-        let microphone;
-        let animationFrame;
-
-        if (isMicOn && localStreamRef.current) {
-            const audioTracks = localStreamRef.current.getAudioTracks();
-            if (audioTracks.length > 0) {
-                try {
-                    audioContext = new (window.AudioContext || window.webkitAudioContext)();
-                    analyzer = audioContext.createAnalyser();
-                    analyzer.fftSize = 256;
-                    
-                    const stream = new MediaStream([audioTracks[0]]);
-                    microphone = audioContext.createMediaStreamSource(stream);
-                    microphone.connect(analyzer);
-
-                    const dataArray = new Uint8Array(analyzer.frequencyBinCount);
-
-                    const updateVolume = () => {
-                        analyzer.getByteFrequencyData(dataArray);
-                        let sum = 0;
-                        for (let i = 0; i < dataArray.length; i++) sum += dataArray[i];
-                        const average = sum / dataArray.length;
-                        setMicVolume(Math.min(100, Math.round((average / 255) * 100 * 2.5)));
-                        animationFrame = requestAnimationFrame(updateVolume);
-                    };
-                    updateVolume();
-                } catch (e) {
-                    console.warn("AudioContext error", e);
-                }
-            }
-        } else {
-            setMicVolume(0);
-        }
-
-        return () => {
-            if (animationFrame) cancelAnimationFrame(animationFrame);
-            if (microphone) microphone.disconnect();
-            if (audioContext && audioContext.state !== 'closed') audioContext.close();
-        };
-    }, [isMicOn, localStreamRef.current]);
-
-    // Notes
-    // eslint-disable-next-line no-unused-vars
-    const [uploadedFileName, setUploadedFileName] = useState("");
     const isScreenSharingRef = useRef(false);
     useEffect(() => { isScreenSharingRef.current = isScreenSharing; }, [isScreenSharing]);
 
+    const [activeScreenSharer, setActiveScreenSharer] = useState(null);
+    const [isMaximized, setIsMaximized] = useState(false);
+    const [activeFilter, setActiveFilter] = useState("none"); 
+    const [peerFilter, setPeerFilter] = useState("none");
     const [remoteStreams, setRemoteStreams] = useState([]); // Tracks mesh participants
     const [myUsername, setMyUsername] = useState("");
     const [myDisplayName, setMyDisplayName] = useState("");
@@ -137,25 +81,6 @@ export default function Call() {
         return Math.floor((Date.now() - start) / 1000);
     });
 
-    // --- Validation on mount ---
-    useEffect(() => {
-        const validateRoomOnMount = async () => {
-            try {
-                const response = await axios.get(`${API_BASE_URL}/api/validate-room/${roomId}/`);
-                if (!response.data.exists) {
-                    alert("This meeting does not exist.");
-                    navigate("/home");
-                }
-            } catch (err) {
-                alert("This meeting does not exist.");
-                navigate("/home");
-            }
-        };
-        if (roomId) {
-            validateRoomOnMount();
-        }
-    }, [roomId, navigate]);
-
     // --- Timers & UI Helpers ---
     useEffect(() => {
         const start = getCallStartTime();
@@ -171,44 +96,10 @@ export default function Call() {
         if (!chatInput.trim()) return;
         const now = new Date();
         const time = `${now.getHours()}:${String(now.getMinutes()).padStart(2, "0")}`;
-        const currentSender = sessionStorage.getItem('username') || myUsername;
         const msg = { from: "You", text: chatInput.trim(), time };
-        
-        setMessages((m) => {
-            const newM = [...m, msg];
-            messagesRef.current = newM;
-            return newM;
-        });
-        
-        const payload = JSON.stringify({ 
-            type: 'chat-message', 
-            text: chatInput.trim(), 
-            time, 
-            sender: currentSender
-        });
-
-        // 1. Try sending over WebRTC DataChannels for zero latency
-        Object.keys(dataChannelsRef.current).forEach((peerUsername) => {
-            const dc = dataChannelsRef.current[peerUsername];
-            if (dc && dc.readyState === 'open') {
-                dc.send(payload);
-            }
-        });
-
-        // 2. Fallback to WebSocket only for peers whose DataChannel isn't open
+        setMessages((m) => [...m, msg]);
         if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-            Object.keys(peerConnectionsRef.current).forEach((peerUsername) => {
-                const dc = dataChannelsRef.current[peerUsername];
-                if (!dc || dc.readyState !== 'open') {
-                    wsRef.current.send(JSON.stringify({ 
-                        type: 'chat-message', 
-                        text: chatInput.trim(), 
-                        time, 
-                        sender: currentSender,
-                        target: peerUsername
-                    }));
-                }
-            });
+            wsRef.current.send(JSON.stringify({ type: 'chat-message', text: chatInput.trim(), time, sender: myUsername }));
         }
         setChatInput("");
     };
@@ -372,7 +263,7 @@ export default function Call() {
                     formData.append('username', myUsername);
 
                     try {
-                        await axios.post(`${API_BASE_URL}/api/recordings/upload/`, formData, {
+                        await axios.post('http://127.0.0.1:8000/api/recordings/upload/', formData, {
                             headers: { 'Content-Type': 'multipart/form-data' }
                         });
                         setNotification("✅ Recording successfully saved to your account!");
@@ -419,7 +310,6 @@ export default function Call() {
 
             if (audioFileTrack) {
                 const musicStream = new MediaStream([audioFileTrack]);
-                musicStreamRef.current = musicStream;
                 Object.keys(peerConnectionsRef.current).forEach((username) => {
                     const pc = peerConnectionsRef.current[username];
                     pc.addTrack(audioFileTrack, musicStream);
@@ -440,7 +330,6 @@ export default function Call() {
             
             if (audioTrack) {
                 const sysAudioStream = new MediaStream([audioTrack]);
-                musicStreamRef.current = sysAudioStream;
                 // Add the audio track to all peers
                 Object.keys(peerConnectionsRef.current).forEach((username) => {
                     const pc = peerConnectionsRef.current[username];
@@ -450,7 +339,6 @@ export default function Call() {
                 wsRef.current?.send(JSON.stringify({ type: 'music-status', status: 'started', sender: myUsername }));
                 
                 audioTrack.onended = () => {
-                    musicStreamRef.current = null;
                     wsRef.current?.send(JSON.stringify({ type: 'music-status', status: 'stopped', sender: myUsername }));
                 };
             }
@@ -579,44 +467,22 @@ export default function Call() {
             localStreamRef.current.getTracks().forEach(track => pc.addTrack(track, localStreamRef.current));
         }
 
-        // If we are currently screen sharing, add those tracks too
-        if (screenStreamRef.current) {
-            screenStreamRef.current.getTracks().forEach(track => {
-                const sender = pc.addTrack(track, screenStreamRef.current);
-                if (!screenSendersRef.current[peerUsername]) screenSendersRef.current[peerUsername] = [];
-                screenSendersRef.current[peerUsername].push(sender);
-            });
-        }
-
-        // If we are currently streaming music, add those tracks too
-        if (musicStreamRef.current) {
-            musicStreamRef.current.getTracks().forEach(track => {
-                pc.addTrack(track, musicStreamRef.current);
-            });
-        }
-
         // Handle incoming remote tracks
         pc.ontrack = (event) => {
-            console.log("Track received from:", peerUsername, event.streams[0]);
+            console.log("Track received from:", peerUsername, event.streams[0]); // CRITICAL: Check console
             
             setRemoteStreams((prev) => {
                 const existingIndex = prev.findIndex(p => p.username === peerUsername);
                 if (existingIndex >= 0) {
                     const currentStream = prev[existingIndex].stream;
-                    const peerObj = prev[existingIndex];
                     
-                    // Handle auxiliary streams (e.g. streaming music or screen share)
-                    if (currentStream && currentStream.id !== event.streams[0].id) {
-                        if (event.track.kind === 'video') {
-                            // This is likely the screen share stream
-                            const newArray = [...prev];
-                            newArray[existingIndex] = { ...peerObj, screenStream: event.streams[0] };
-                            return newArray;
-                        } else if (event.track.kind === 'audio') {
+                    // Handle auxiliary streams (e.g. streaming music)
+                    const currentOriginalId = currentStream ? (currentStream.originalId || currentStream.id) : null;
+                    if (currentStream && currentOriginalId !== event.streams[0].id) {
+                        if (event.track.kind === 'audio') {
                             if (!window[`aux_audio_${event.streams[0].id}`]) {
                                 window[`aux_audio_${event.streams[0].id}`] = true;
                                 const audio = new Audio();
-                                window[`aux_audio_obj_${event.streams[0].id}`] = audio; // Prevent GC
                                 audio.srcObject = event.streams[0];
                                 audio.play().catch(e => console.error("Aux audio play failed:", e));
                             }
@@ -624,17 +490,18 @@ export default function Call() {
                         return prev; // Do not overwrite main stream
                     }
                     
-                    // Main stream update (camera/mic)
-                    if (currentStream !== event.streams[0]) {
-                        const newArray = [...prev];
-                        newArray[existingIndex] = { ...peerObj, stream: event.streams[0] };
-                        return newArray;
-                    }
-                    return prev;
+                    // Force the video element to pick up new tracks (like mic toggling) by creating a new MediaStream
+                    const newArray = [...prev];
+                    const newStream = new MediaStream(event.streams[0].getTracks());
+                    newStream.originalId = event.streams[0].id;
+                    newArray[existingIndex] = { ...newArray[existingIndex], stream: newStream };
+                    return newArray;
                 }
                 
                 // Fallback, just in case
-                return [...prev, { username: peerUsername, displayName: peerUsername, stream: event.streams[0] }];
+                const fallbackStream = new MediaStream(event.streams[0].getTracks());
+                fallbackStream.originalId = event.streams[0].id;
+                return [...prev, { username: peerUsername, displayName: peerUsername, stream: fallbackStream }];
             });
         };
 
@@ -673,39 +540,16 @@ export default function Call() {
 
         peerConnectionsRef.current[peerUsername] = pc;
 
-        const setupDataChannel = (channel, peerUsername) => {
-            channel.onmessage = (event) => {
-                try {
-                    const data = JSON.parse(event.data);
-                    if (data.type === 'chat-message') {
-                        setMessages((m) => {
-                            const newM = [...m, { from: data.sender, text: data.text, time: data.time }];
-                            messagesRef.current = newM;
-                            return newM;
-                        });
-                    }
-                } catch (e) {
-                    console.error("DataChannel parse error:", e);
-                }
-            };
-            dataChannelsRef.current[peerUsername] = channel;
-        };
-
         if (isCaller) {
-            // Setup DataChannel for peer-to-peer chat
-            const dc = pc.createDataChannel("hangout-chat");
-            setupDataChannel(dc, peerUsername);
+            // Force negotiation even if no tracks are present initially
+            pc.createDataChannel("hangout-data");
         }
-
-        pc.ondatachannel = (event) => {
-            setupDataChannel(event.channel, peerUsername);
-        };
         return pc;
     };
 
     // --- WebSocket Signal Multiplexer ---
     const connectWebSocket = (username) => {
-        wsRef.current = new WebSocket(`${WS_BASE_URL}/ws/call/${roomId}/`);
+        wsRef.current = new WebSocket(`ws://localhost:8000/ws/call/${roomId}/`);
         
         // Wrap send for logging
         const originalSend = wsRef.current.send.bind(wsRef.current);
@@ -746,13 +590,12 @@ export default function Call() {
                         initializePeerConnection(data.sender, true, username);
                         // Store the display name if provided
                         if (data.displayName) {
-                            setRemoteStreams((prev) => {
-                                const exists = prev.some(p => p.username === data.sender);
-                                if (exists) {
-                                    return prev.map(p => p.username === data.sender ? { ...p, displayName: data.displayName } : p);
-                                }
-                                return [...prev, { username: data.sender, displayName: data.displayName }];
-                            });
+                            setRemoteStreams((prev) =>
+                                prev.map(p => p.username === data.sender
+                                    ? { ...p, displayName: data.displayName }
+                                    : p
+                                )
+                            );
                         }
                         // Reply with our display name so the newcomer knows ours
                         wsRef.current.send(JSON.stringify({ type: 'display-name', displayName: sessionStorage.getItem('displayName') || username, sender: username, target: data.sender }));
@@ -822,16 +665,6 @@ export default function Call() {
                         }));
                         // Share our display name with the requester
                         wsRef.current.send(JSON.stringify({ type: 'display-name', displayName: sessionStorage.getItem('displayName') || username, sender: username, target: data.sender }));
-                        
-                        // Send our chat history so far
-                        if (messagesRef.current.length > 0) {
-                            wsRef.current.send(JSON.stringify({
-                                type: 'chat-history',
-                                history: messagesRef.current,
-                                sender: username,
-                                target: data.sender
-                            }));
-                        }
                         break;
                     case 'timer-sync': {
                         const currentStart = getCallStartTime();
@@ -845,32 +678,7 @@ export default function Call() {
                         handlePeerDisconnect(data.username || data.sender);
                         break;
                     case 'chat-message':
-                        setMessages((m) => {
-                            const newM = [...m, { from: data.sender, text: data.text, time: data.time }];
-                            messagesRef.current = newM;
-                            return newM;
-                        });
-                        break;
-                    case 'chat-history':
-                        setMessages((prev) => {
-                            const newMessages = [...prev];
-                            let changed = false;
-                            data.history.forEach(h => {
-                                const correctedFrom = h.from === "You" ? data.sender : h.from;
-                                const exists = newMessages.some(m => m.text === h.text && m.time === h.time && m.from === correctedFrom);
-                                if (!exists) {
-                                    newMessages.push({ ...h, from: correctedFrom });
-                                    changed = true;
-                                }
-                            });
-                            if (changed) {
-                                // Simple chronological sort assuming time format HH:MM
-                                newMessages.sort((a, b) => a.time.localeCompare(b.time));
-                                messagesRef.current = newMessages;
-                                return newMessages;
-                            }
-                            return prev;
-                        });
+                        setMessages((m) => [...m, { from: data.sender, text: data.text, time: data.time }]);
                         break;
                     case 'change-filter':
                         setPeerFilter(data.filter);
@@ -878,22 +686,14 @@ export default function Call() {
                     case 'music-status':
                         break;
                     case 'display-name':
-                        setRemoteStreams((prev) => {
-                            const exists = prev.some(p => p.username === data.sender);
-                            if (exists) {
-                                return prev.map(p => p.username === data.sender ? { ...p, displayName: data.displayName } : p);
-                            }
-                            return [...prev, { username: data.sender, displayName: data.displayName }];
-                        });
+                        setRemoteStreams((prev) =>
+                            prev.map(p => p.username === data.sender ? { ...p, displayName: data.displayName } : p)
+                        );
                         break;
                     case 'media-status':
-                        setRemoteStreams((prev) => {
-                            const exists = prev.some(p => p.username === data.sender);
-                            if (exists) {
-                                return prev.map(p => p.username === data.sender ? { ...p, isMicOn: data.isMicOn, isCameraOn: data.isCameraOn } : p);
-                            }
-                            return [...prev, { username: data.sender, isMicOn: data.isMicOn, isCameraOn: data.isCameraOn }];
-                        });
+                        setRemoteStreams((prev) => 
+                            prev.map(p => p.username === data.sender ? { ...p, isMicOn: data.isMicOn, isCameraOn: data.isCameraOn } : p)
+                        );
                         break;
                 }
             } catch (error) {
@@ -920,24 +720,31 @@ export default function Call() {
 
                 Object.keys(peerConnectionsRef.current).forEach((username) => {
                     const pc = peerConnectionsRef.current[username];
+                    const senders = pc.getSenders();
+                    const videoSender = senders.find(s => s.track && s.track.kind === 'video');
                     
-                    // Create separate senders for the screen share stream
-                    const videoSender = pc.addTrack(screenVideoTrack, screenStream);
-                    let audioSender = null;
-                    if (screenAudioTrack) {
-                        audioSender = pc.addTrack(screenAudioTrack, screenStream);
+                    let activeSender = videoSender;
+                    if (videoSender) { 
+                        videoSender.replaceTrack(screenVideoTrack); 
+                    } else {
+                        activeSender = pc.addTrack(screenVideoTrack, localStreamRef.current || screenStream);
                     }
-                    
-                    screenSendersRef.current[username] = [videoSender, audioSender].filter(Boolean);
 
                     // Boost bitrate to maximize quality over WebRTC
-                    try {
-                        const params = videoSender.getParameters();
-                        if (!params.encodings) params.encodings = [{}];
-                        params.encodings[0].maxBitrate = 5000000; // 5 Mbps
-                        videoSender.setParameters(params);
-                    } catch (e) {
-                        console.warn("Could not set maxBitrate on screen share", e);
+                    if (activeSender) {
+                        try {
+                            const params = activeSender.getParameters();
+                            if (!params.encodings) params.encodings = [{}];
+                            params.encodings[0].maxBitrate = 5000000; // 5 Mbps
+                            activeSender.setParameters(params);
+                        } catch (e) {
+                            console.warn("Could not set maxBitrate on screen share", e);
+                        }
+                    }
+                    
+                    if (screenAudioTrack) {
+                        const sysAudioStream = new MediaStream([screenAudioTrack]);
+                        pc.addTrack(screenAudioTrack, sysAudioStream);
                     }
                 });
 
@@ -955,13 +762,21 @@ export default function Call() {
     const stopScreenSharing = async () => {
         if (screenStreamRef.current) { screenStreamRef.current.getTracks().forEach(track => track.stop()); screenStreamRef.current = null; }
         
+        const cameraVideoTrack = localStreamRef.current ? localStreamRef.current.getVideoTracks()[0] : null;
         Object.keys(peerConnectionsRef.current).forEach((username) => {
             const pc = peerConnectionsRef.current[username];
-            const senders = screenSendersRef.current[username] || [];
-            senders.forEach(sender => {
-                try { pc.removeTrack(sender); } catch(e) { console.error(e); }
+            const senders = pc.getSenders();
+            const videoSender = senders.find(s => s.track && s.track.kind === 'video');
+            if (videoSender) { 
+                if (cameraVideoTrack) {
+                    videoSender.replaceTrack(cameraVideoTrack); 
+                } else {
+                    pc.removeTrack(videoSender);
+                }
+            }
+            senders.filter(s => s.track && s.track.readyState === 'ended' && s.track.kind === 'audio').forEach(s => {
+                try { pc.removeTrack(s); } catch(e) { console.error(e); }
             });
-            delete screenSendersRef.current[username];
         });
         
         if (localVideoRef.current && localStreamRef.current) { 
@@ -1075,6 +890,7 @@ export default function Call() {
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
+            aspectRatio: "16/9",
             transition: "all 0.4s cubic-bezier(0.4, 0, 0.2, 1)",
             boxShadow: "0 10px 30px rgba(0,0,0,0.2)"
         };
@@ -1082,23 +898,20 @@ export default function Call() {
         if (isSidebarItem) {
             baseStyle.width = "100%";
             baseStyle.height = "auto";
-            baseStyle.aspectRatio = "16/9";
             baseStyle.flexShrink = 0;
             return baseStyle;
         }
 
-        // For main grid, allow cards to completely fill the grid cell boundaries vertically and horizontally
+        // For main grid, use dynamic sizing that respects grid boundaries
         baseStyle.width = "100%";
-        baseStyle.height = "100%";
+        baseStyle.height = "auto";
+        baseStyle.maxWidth = "100%";
+        baseStyle.maxHeight = "100%";
+        baseStyle.placeSelf = "center";
         
-        // Ensure that for a single user, it acts like a 16:9 card
+        // Ensure that for a single user, it doesn't scale infinitely large
         if (totalUsers === 1) {
-            baseStyle.aspectRatio = "16/9";
-            baseStyle.height = "auto";
-            baseStyle.width = "100%";
-            baseStyle.maxWidth = "1100px";
-            baseStyle.maxHeight = "calc(100vh - 200px)";
-            baseStyle.margin = "auto";
+            baseStyle.maxWidth = "900px";
         }
 
         return baseStyle;
@@ -1306,28 +1119,30 @@ export default function Call() {
 
       <header
         style={{
-          display: "grid", gridTemplateColumns: "1fr auto 1fr", alignItems: "center",
+          display: "flex", alignItems: "center",
+          justifyContent: "space-between",
           padding: "11px 20px", flexShrink: 0,
           borderBottom: "1px solid rgba(255,255,255,0.05)",
           background: "rgba(9,9,13,0.92)",
           backdropFilter: "blur(10px)", zIndex: 30,
         }}
       >
-        <div style={{ display: "flex", alignItems: "center", gap: 8, justifySelf: "start" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           <span style={{ fontFamily: "'Pramukh Rounded', sans-serif", fontWeight: 800, fontStyle: "italic", fontSize: 30, color: "#FDFBD4", letterSpacing: "1px" }}>HANGOUT</span>
         </div>
 
-        <div style={{ display: "flex", alignItems: "center", gap: 10, justifySelf: "center" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <button className="hbtn" onClick={copyRoom}>
             <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 12, color: "#10B981", letterSpacing: "0.07em" }}>{roomId}</span>
             {copied ? <Check size={12} strokeWidth={2.5} color="#10B981" /> : <Copy size={12} strokeWidth={2} />}
           </button>
-          <div style={{ display: "flex", alignItems: "center", gap: 7, background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.18)", borderRadius: 999, padding: "6px 13px" }}>
-            <span className="rec-dot" />
+          <div style={{ display: "flex", alignItems: "center", gap: 7, background: isRecording ? "rgba(239,68,68,0.15)" : "rgba(239,68,68,0.08)", border: isRecording ? "1px solid rgba(239,68,68,0.3)" : "1px solid rgba(239,68,68,0.18)", borderRadius: 999, padding: "6px 13px" }}>
+            {isRecording && <span className="rec-dot" />}
+            <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11.5, color: "#EF4444" }}>{fmt(elapsed)}</span>
           </div>
         </div>
 
-        <div style={{ display: "flex", alignItems: "center", gap: 10, justifySelf: "end" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <button className="hbtn" onClick={() => setShowMusicCard(true)}>
             <Music size={13} strokeWidth={1.75} /> Stream Music
           </button>
@@ -1348,8 +1163,8 @@ export default function Call() {
             gridTemplateColumns: activeScreenSharer ? undefined : `repeat(${getGridDimensions(totalUsers).cols}, 1fr)`,
             gridTemplateRows: activeScreenSharer ? undefined : `repeat(${getGridDimensions(totalUsers).rows}, 1fr)`,
             flexDirection: activeScreenSharer ? "row" : undefined,
-            alignItems: "stretch",
-            justifyItems: "stretch",
+            alignItems: activeScreenSharer ? "stretch" : "center",
+            justifyContent: "center",
             alignContent: "center",
             gap: "16px",
             padding: "16px",
@@ -1364,7 +1179,7 @@ export default function Call() {
             
             {/* The Local Video is always in the DOM for WebRTC bindings, but hidden if someone else is sharing */}
             <video
-              data-username={`${myDisplayName} (You)`}
+              data-username={`${myUsername} (You)`}
               ref={(el) => {
                 localVideoRef.current = el;
                 const activeStream = isScreenSharing ? screenStreamRef.current : localStreamRef.current;
@@ -1390,13 +1205,11 @@ export default function Call() {
               (() => {
                 const sharer = remoteStreams.find(p => p.username === activeScreenSharer);
                 const currentPeerFilterStyle = filters.find(f => f.id === peerFilter)?.style || "";
-                // Use screenStream if available, fallback to regular stream
-                const renderStream = sharer?.screenStream || sharer?.stream;
-                return renderStream ? (
+                return sharer ? (
                   <video
                     data-username={`${sharer.username} (Presenting)`}
                     autoPlay playsInline
-                    ref={(el) => { if (el && el.srcObject !== renderStream) el.srcObject = renderStream; }}
+                    ref={(el) => { if (el && el.srcObject !== sharer.stream) el.srcObject = sharer.stream; }}
                     className={`${currentPeerFilterStyle} stage-video`}
                     style={{ width: "100%", height: "100%", objectFit: "fill" }}
                   />
@@ -1409,7 +1222,7 @@ export default function Call() {
             {(activeScreenSharer === myUsername || !activeScreenSharer) && !(isCameraOn || isScreenSharing) && <VideoOff size={24} color="#2D3748" />}
             
             <div style={{ position: "absolute", bottom: 12, left: 12, background: "rgba(26,28,30,0.8)", padding: "6px 12px", borderRadius: 8, fontSize: 11, fontWeight: 600, display: "flex", alignItems: "center", gap: 6 }}>
-               {activeScreenSharer === myUsername ? `Your Screen` : (activeScreenSharer ? (() => { const sharer = remoteStreams.find(p => p.username === activeScreenSharer); return `${sharer?.displayName || activeScreenSharer}'s Screen`; })() : `${myDisplayName} (You)`)}
+               {activeScreenSharer === myUsername ? `Your Screen` : (activeScreenSharer ? (() => { const sharer = remoteStreams.find(p => p.username === activeScreenSharer); return `${sharer?.username || activeScreenSharer}'s Screen`; })() : `${myUsername} (You)`)}
                {!activeScreenSharer || activeScreenSharer === myUsername ? (
                  isMicOn ? <Mic size={14} color="#10B981" /> : <MicOff size={14} color="#EF4444" />
                ) : (
@@ -1447,7 +1260,7 @@ export default function Call() {
               {activeScreenSharer !== myUsername && (
                 <div style={getCardStyle(true)}>
                   <video
-                      data-username={`${myDisplayName} (You)`}
+                      data-username={`${myUsername} (You)`}
                       autoPlay playsInline muted
                     ref={(el) => { if (el && localStreamRef.current && el.srcObject !== localStreamRef.current) el.srcObject = localStreamRef.current; }}
                     className={`${localFilterClass} sidebar-video`}
@@ -1455,7 +1268,7 @@ export default function Call() {
                   />
                   {!isCameraOn && <VideoOff size={24} color="#2D3748" />}
                   <div style={{ position: "absolute", bottom: 12, left: 12, background: "rgba(26,28,30,0.8)", padding: "6px 12px", borderRadius: 8, fontSize: 11, fontWeight: 600, display: "flex", alignItems: "center", gap: 6 }}>
-                     {myDisplayName} (You)
+                     {myUsername} (You)
                      {isMicOn ? <Mic size={14} color="#10B981" /> : <MicOff size={14} color="#EF4444" />}
                   </div>
                 </div>
@@ -1465,7 +1278,7 @@ export default function Call() {
                 return (
                   <div key={peer.username} style={getCardStyle(true)}>
                     <video
-                      data-username={peer.displayName || peer.username}
+                      data-username={peer.username}
                       autoPlay
                       playsInline
                       ref={(el) => { if (el && el.srcObject !== peer.stream) el.srcObject = peer.stream; }}
@@ -1474,7 +1287,7 @@ export default function Call() {
                     />
                     {peer.isCameraOn === false && <VideoOff size={24} color="#2D3748" />}
                     <div style={{ position: "absolute", bottom: 12, left: 12, background: "rgba(26,28,30,0.8)", padding: "6px 12px", borderRadius: 8, fontSize: 11, fontWeight: 600, display: "flex", alignItems: "center", gap: 6 }}>
-                       👤 {peer.displayName || peer.username}
+                       👤 {peer.username}
                        {peer.isMicOn !== false ? <Mic size={14} color="#10B981" /> : <MicOff size={14} color="#EF4444" />}
                     </div>
                   </div>
@@ -1487,7 +1300,7 @@ export default function Call() {
               return (
                 <div key={peer.username} style={getCardStyle()}>
                   <video
-                    data-username={peer.displayName || peer.username}
+                    data-username={peer.username}
                     autoPlay
                     playsInline
                     ref={(el) => { if (el && el.srcObject !== peer.stream) el.srcObject = peer.stream; }}
@@ -1496,7 +1309,7 @@ export default function Call() {
                   />
                   {peer.isCameraOn === false && <VideoOff size={24} color="#2D3748" />}
                   <div style={{ position: "absolute", bottom: 12, left: 12, background: "rgba(26,28,30,0.8)", padding: "6px 12px", borderRadius: 8, fontSize: 11, fontWeight: 600, display: "flex", alignItems: "center", gap: 6 }}>
-                     👤 {peer.displayName || peer.username}
+                     👤 {peer.username}
                      {peer.isMicOn !== false ? <Mic size={14} color="#10B981" /> : <MicOff size={14} color="#EF4444" />}
                   </div>
                 </div>
@@ -1517,63 +1330,12 @@ export default function Call() {
           >
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "13px 14px", flexShrink: 0, borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
               <div style={{ display: "flex", gap: 2, background: "rgba(255,255,255,0.04)", borderRadius: 999, padding: 3 }}>
-                {["people", "chat", "notes"].map((tab) => (
-                  <button key={tab} className={`ptab ${panel === tab ? "ptab-on" : "ptab-off"}`} onClick={() => setPanel(tab)} style={{ textTransform: "capitalize" }}>{tab}</button>
+                {["notes", "chat"].map((tab) => (
+                  <button key={tab} className={`ptab ${panel === tab ? "ptab-on" : "ptab-off"}`} onClick={() => setPanel(tab)}>{tab}</button>
                 ))}
               </div>
-              <button onClick={() => setPanel(null)} style={{ background: "transparent", border: "none", cursor: "pointer", color: "#64748b", display: "flex", padding: 5, borderRadius: 6, outline: "none", transition: "color 0.2s" }} onMouseOver={e => e.currentTarget.style.color="#f8fafc"} onMouseOut={e => e.currentTarget.style.color="#64748b"}><X size={15} strokeWidth={2} /></button>
+              <button onClick={() => setPanel(null)} style={{ background: "transparent", border: "none", cursor: "pointer", color: "#2D3748", display: "flex", padding: 5, borderRadius: 6, outline: "none" }}><X size={15} strokeWidth={2} /></button>
             </div>
-
-            {panel === "people" && (
-              <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
-                <div style={{ padding: "14px 16px", borderBottom: "1px solid rgba(255,255,255,0.05)", fontSize: 13, fontWeight: 600, color: "#CBD5E1" }}>
-                  In call ({remoteStreams.length + 1})
-                </div>
-                <div style={{ flex: 1, overflowY: "auto", padding: "12px", display: "flex", flexDirection: "column", gap: 8 }}>
-                  {/* Local User */}
-                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 14px", background: "rgba(255,255,255,0.03)", borderRadius: 12, border: "1px solid rgba(255,255,255,0.05)" }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                      <div style={{ width: 32, height: 32, borderRadius: "50%", background: "rgba(16,185,129,0.15)", color: "#10B981", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontWeight: 700 }}>
-                        {myDisplayName[0]?.toUpperCase()}
-                      </div>
-                      <div style={{ display: "flex", flexDirection: "column" }}>
-                        <span style={{ fontSize: 13, color: "#fff", fontWeight: 600 }}>{myDisplayName} (You)</span>
-                        <span style={{ fontSize: 11, color: isMicOn ? "#10B981" : "#94A3B8" }}>
-                          {isMicOn ? "Microphone active" : "Microphone off"}
-                        </span>
-                      </div>
-                    </div>
-                    <div style={{ display: "flex", gap: 10, color: "#94A3B8", alignItems: "center" }}>
-                      {isMicOn && (
-                        <div style={{ display: "flex", gap: 2, height: 12, alignItems: "flex-end", marginRight: 4 }}>
-                          {[1, 2, 3].map(i => (
-                            <div key={i} style={{ width: 3, background: "#10B981", borderRadius: 2, height: Math.max(2, (micVolume / 100) * (i * 4)), transition: "height 0.1s ease" }} />
-                          ))}
-                        </div>
-                      )}
-                      {isMicOn ? <Mic size={16} color="#10B981" /> : <MicOff size={16} color="#EF4444" />}
-                      {isCameraOn ? <Video size={16} color="#10B981" /> : <VideoOff size={16} color="#EF4444" />}
-                    </div>
-                  </div>
-                  
-                  {/* Remote Users */}
-                  {remoteStreams.map(peer => (
-                    <div key={peer.username} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 14px", borderRadius: 12, border: "1px solid transparent", transition: "background 0.2s" }} onMouseEnter={(e) => e.currentTarget.style.background = "rgba(255,255,255,0.02)"} onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}>
-                      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                        <div style={{ width: 32, height: 32, borderRadius: "50%", background: "rgba(99,102,241,0.15)", color: "#818CF8", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontWeight: 700 }}>
-                          {(peer.displayName || peer.username)[0]?.toUpperCase()}
-                        </div>
-                        <span style={{ fontSize: 13, color: "#E2E8F0", fontWeight: 500 }}>{peer.displayName || peer.username}</span>
-                      </div>
-                      <div style={{ display: "flex", gap: 10, color: "#94A3B8", alignItems: "center" }}>
-                        {peer.isMicOn !== false ? <Mic size={16} color="#10B981" /> : <MicOff size={16} color="#EF4444" />}
-                        {peer.isCameraOn !== false ? <Video size={16} color="#10B981" /> : <VideoOff size={16} color="#EF4444" />}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
 
             {panel === "notes" && (
               <div style={{ flex: 1, display: "flex", flexDirection: "column", padding: "14px 16px", overflow: "hidden" }}>
@@ -1588,7 +1350,7 @@ export default function Call() {
                       <button onClick={async () => {
                         if (!notes.trim()) { setNotification("Notes are empty!"); setTimeout(() => setNotification(""), 2000); return; }
                         try {
-                          await axios.post(`${API_BASE_URL}/api/notes/save/`, { room_id: roomId, username: myUsername, content: notes });
+                          await axios.post('http://127.0.0.1:8000/api/notes/save/', { room_id: roomId, username: myUsername, content: notes });
                           setNotification("✅ Notes saved successfully!");
                         } catch (err) { console.error(err); setNotification("✕ Failed to save notes."); }
                         setTimeout(() => setNotification(""), 2000);
@@ -1653,7 +1415,6 @@ export default function Call() {
 
           <div style={{ width: 1, height: 22, background: "rgba(255,255,255,0.07)", margin: "0 4px", flexShrink: 0 }} />
 
-          <button className={`cb ${panel === "people" ? "cb-active" : "cb-default"}`} onClick={() => togglePanel("people")} title="Participants"><Users size={17} strokeWidth={1.75} /></button>
           <button className={`cb ${panel === "chat" ? "cb-active" : "cb-default"}`} onClick={() => togglePanel("chat")} title="Chat"><MessageSquare size={17} strokeWidth={1.75} /></button>
           <button className={`cb ${panel === "notes" ? "cb-active" : "cb-default"}`} onClick={() => togglePanel("notes")} title="Notes"><FileText size={17} strokeWidth={1.75} /></button>
           <button className={`cb ${showFilters ? "cb-active" : "cb-default"}`} onClick={toggleFilters} title="Filters"><Sliders size={17} strokeWidth={1.75} /></button>
