@@ -6,7 +6,8 @@
 ![React](https://img.shields.io/badge/Frontend-React%2019-61DAFB?logo=react&logoColor=black)
 ![WebRTC](https://img.shields.io/badge/Transport-WebRTC%20%2B%20WebSocket-orange)
 ![TailwindCSS](https://img.shields.io/badge/Styling-TailwindCSS%20v4-38BDF8?logo=tailwindcss&logoColor=white)
-![SQLite](https://img.shields.io/badge/Database-SQLite-003B57?logo=sqlite&logoColor=white)
+![PostgreSQL](https://img.shields.io/badge/Database-Neon%20PostgreSQL-336791?logo=postgresql&logoColor=white)
+![Cloudinary](https://img.shields.io/badge/Storage-Cloudinary-3448C5?logo=cloudinary&logoColor=white)
 ![License](https://img.shields.io/badge/License-MIT-green)
 
 ---
@@ -63,9 +64,9 @@ The following features are implemented and confirmed from source code:
 | **In-call chat** | Text messages sent over the WebSocket signaling channel and rendered in real time |
 | **In-call notes panel** | Freeform text editor with copy and save-to-server actions |
 | **Music streaming** | Shares a local audio file or system audio (from Spotify / YouTube Music tab) as a peer track |
-| **Meeting recording** | Canvas-based composite recorder (VP9/VP8/WebM) that captures all video tiles + audio; auto-uploads to the backend on stop |
-| **Recording playback** | Recordings stored per-user in the backend; playable directly from the Home dashboard |
-| **15-day recording expiry** | Server-side automatic cleanup of files and rows older than 15 days |
+| **Meeting recording** | Canvas-based composite recorder (VP9/VP8/WebM) that captures all video tiles + audio; auto-uploads to Cloudinary via the backend on stop |
+| **Recording playback** | Recordings stored per-user in Cloudinary; playable directly from the Home dashboard |
+| **15-day recording expiry** | Server-side automatic cleanup of files (from Cloudinary) and rows older than 15 days |
 | **Saved notes history** | Notes persisted to the database; viewable, copyable, and deletable from the Home dashboard |
 | **Authentication** | Username/email + password sign-up and sign-in via Django's built-in auth |
 | **Brute-force lockout** | Progressive account lockout: 1 min after 5 fails, 10 min after 6, 30 min after 7+ |
@@ -117,9 +118,9 @@ The following features are implemented and confirmed from source code:
 | `daphne` | (listed in `INSTALLED_APPS`) | ASGI server |
 | `django-cors-headers` | (listed in `INSTALLED_APPS`) | CORS middleware |
 
-> **Database:** SQLite (file-based, no additional setup)  
+> **Database:** Neon Serverless Postgres  
 > **Channel Layer:** `InMemoryChannelLayer` — single-server only; replace with Redis for multi-process deployment  
-> **Media storage:** Local filesystem under `backend/media/recordings/`
+> **Media storage:** Cloudinary via `django-cloudinary-storage`
 
 ---
 
@@ -261,7 +262,7 @@ There is no `.env` file or `.env.example` in this repository. All configuration 
 
 | Setting | Location | Current Value |
 |---|---|---|
-| Backend API base URL | `sign_in.jsx`, `sign_up.jsx`, `Home.jsx`, `Call.jsx` | `http://127.0.0.1:8000` |
+| Backend API base URL | `sign_in.jsx`, `sign_up.jsx`, `Home.jsx`, `Call.jsx`, `utils.js` | Render Backend URL or `http://127.0.0.1:8000` |
 | WebSocket URL | `Call.jsx` | `ws://localhost:8000/ws/call/{roomId}/` |
 | Django `SECRET_KEY` | `core/settings.py` | Hardcoded (insecure for production) |
 | Django `DEBUG` | `core/settings.py` | `True` |
@@ -311,8 +312,8 @@ graph TB
 
         subgraph DB_Layer["Persistence Layer"]
             ORM["Django ORM"]
-            SQLite[("SQLite\ndb.sqlite3")]
-            MediaFS[("File System\nmedia/recordings/")]
+            Postgres[("Neon Postgres\n(Database)")]
+            Cloudinary[("Cloudinary\n(Video Storage)")]
         end
     end
 
@@ -323,8 +324,8 @@ graph TB
     ReactA -- "HTTP GET/POST/DELETE\n/api/recordings/ /api/notes/\n(axios, JSON + multipart)" --> DRF
     ReactB -- "HTTP POST /api/signup/ /api/signin/\n(axios, JSON)" --> DRF
     DRF -- "ORM queries" --> ORM
-    ORM --> SQLite
-    ORM --> MediaFS
+    ORM --> Postgres
+    ORM --> Cloudinary
 
     ReactA -- "WS ws://localhost:8000/ws/call/{roomId}/" --> ASGI
     ReactB -- "WS ws://localhost:8000/ws/call/{roomId}/" --> ASGI
