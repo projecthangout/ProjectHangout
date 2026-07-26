@@ -1448,7 +1448,7 @@ Standard Django app configuration classes (`MeetingsConfig` / `UsersConfig`). Se
 
 ---
 
-## Authors
+## Developers
 
 - **Romit Singh** — Backend Developer · [LinkedIn](https://www.linkedin.com/in/romit-singh-ba940634a)
 - **Subhrotosh Chakraborty** — Frontend Developer · [LinkedIn](https://www.linkedin.com/in/subhrotosh-chakraborty-696758388)
