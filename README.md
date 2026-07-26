@@ -32,10 +32,9 @@
   - [Joining via Room Code](#5-joining-via-room-code)
   - [WebRTC Connection Establishment](#6-webrtc-connection-establishment-multi-user)
   - [In-Call Actions](#7-in-call-actions)
-  - [Meeting Recording](#8-meeting-recording)
-  - [Screen Sharing](#9-screen-sharing)
-  - [Leaving a Call](#10-leaving-a-call)
-  - [Recording & Notes Dashboard](#11-recording--notes-management-on-dashboard)
+  - [Screen Sharing](#8-screen-sharing)
+  - [Leaving a Call](#9-leaving-a-call)
+  - [Recording & Notes Dashboard](#10-recording--notes-management-on-dashboard)
 - [Database Schema](#database-schema)
   - [ER Diagram](#entity-relationship-diagram)
   - [Model Reference](#model-reference)
@@ -660,41 +659,7 @@ sequenceDiagram
 
 ---
 
-### 8. Meeting Recording
-
-```mermaid
-sequenceDiagram
-    participant User as User (Call.jsx)
-    participant Recorder as MediaRecorder API
-    participant Canvas as Offscreen Canvas
-    participant API as POST /api/recordings/upload/
-
-    User->>User: Clicks Record button (isRecording = false)
-    User->>Canvas: createElement('canvas') 1280x720
-    User->>Canvas: requestAnimationFrame(drawFrame) loop starts
-    Note over Canvas: drawFrame() reads all .stage-video,<br/>.sidebar-video, or .grid-video elements<br/>and paints them to the canvas
-    User->>Recorder: canvas.captureStream(30fps) + audio tracks
-    User->>Recorder: new MediaRecorder(combinedStream, {mimeType: 'video/webm;codecs=vp9,opus'})
-    Recorder->>Recorder: start(1000ms timeslice)
-    Recorder->>User: ondataavailable → push to recordedChunks[]
-    User->>User: setIsRecording(true)
-
-    User->>User: Clicks Record button again (isRecording = true)
-    User->>Recorder: stop()
-    Recorder->>User: onstop fires
-    User->>Canvas: cancelAnimationFrame() — stop drawing loop
-    User->>User: new Blob(recordedChunks, {type:'video/webm'})
-    User->>API: axios.post(FormData{video_file, room_id, username})
-    API->>API: User.objects.get(username)
-    API->>API: Room.get_or_create(room_id)
-    API->>API: MeetingRecording.objects.create(user, room, video_file)
-    API-->>User: 200 {message: "Upload successful", id}
-    User->>User: setNotification("✅ Recording saved!")
-```
-
----
-
-### 9. Screen Sharing
+### 8. Screen Sharing
 
 ```mermaid
 sequenceDiagram
@@ -729,7 +694,7 @@ sequenceDiagram
 
 ---
 
-### 10. Leaving a Call
+### 9. Leaving a Call
 
 ```mermaid
 sequenceDiagram
@@ -753,7 +718,7 @@ sequenceDiagram
 
 ---
 
-### 11. Recording & Notes Management on Dashboard
+### 10. Recording & Notes Management on Dashboard
 
 ```mermaid
 flowchart TD
@@ -1448,7 +1413,7 @@ Standard Django app configuration classes (`MeetingsConfig` / `UsersConfig`). Se
 
 ---
 
-## Developers
+## Authors
 
 - **Romit Singh** — Backend Developer · [LinkedIn](https://www.linkedin.com/in/romit-singh-ba940634a)
 - **Subhrotosh Chakraborty** — Frontend Developer · [LinkedIn](https://www.linkedin.com/in/subhrotosh-chakraborty-696758388)
