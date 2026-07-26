@@ -1,16 +1,51 @@
-# React + Vite
+# Project Hangout - Frontend
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+This is the frontend application for Project Hangout, built with React and Vite. It provides an immersive, modern user interface utilizing 3D elements and smooth animations.
 
-Currently, two official plugins are available:
+## 🚀 Tech Stack
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+- **Framework**: [React 19](https://react.dev/) + [Vite](https://vitejs.dev/)
+- **Routing**: [React Router](https://reactrouter.com/)
+- **Styling**: [Tailwind CSS v4](https://tailwindcss.com/)
+- **UI Components**: [Radix UI](https://www.radix-ui.com/)
+- **Animations**: [Framer Motion](https://www.framer.com/motion/)
+- **3D Graphics**: [Three.js](https://threejs.org/) & [React Three Fiber](https://docs.pmnd.rs/react-three-fiber/)
+- **HTTP Client**: [Axios](https://axios-http.com/)
 
-## React Compiler
+## 📦 Getting Started
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+### Prerequisites
 
-## Expanding the ESLint configuration
+Make sure you have Node.js installed (v18+ recommended).
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+### Installation
+
+1. Navigate to the `frontend` directory:
+   ```bash
+   cd frontend
+   ```
+2. Install the dependencies:
+   ```bash
+   npm install
+   ```
+
+### Environment Variables
+
+Create a `.env` file in the root of the `frontend` directory. Make sure to define any required environment variables (e.g., API keys, backend endpoints) before starting the development server.
+
+### Available Scripts
+
+- `npm run dev` - Starts the development server with Hot Module Replacement (HMR).
+- `npm run build` - Builds the application for production.
+- `npm run preview` - Locally previews the production build.
+- `npm run lint` - Runs ESLint to check for code issues.
+
+## 🧪 Testing
+
+This project is configured with [Playwright](https://playwright.dev/) for end-to-end testing.
+
+## 🤝 Contributing
+
+When contributing to this frontend:
+- Ensure you run `npm run lint` before committing your changes.
+- Follow the existing project structure and styling conventions.
